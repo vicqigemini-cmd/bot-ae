@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL v16.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
+//|  APEX SOVEREIGN CITADEL v17.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
 //|  (SMC FVG • Golden Pocket 50-61.8% • 1:2.5 RR • Anti-Rungkad)    |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "16.00"
-#property description "Unified Master Brain EA v16.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
+#property version   "17.00"
+#property description "Unified Master Brain EA v17.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -158,8 +158,8 @@ input double              InpMaxPortfolioRiskPct   = 2.0;                   // B
 input int                 InpMaxTotalOpenTradesAll = 3;                     // Batas Maksimal Total Posisi Terbuka Seluruh Portofolio
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "16.00";
-string                    g_last_self_updated_ver  = "16.00";
+string                    g_current_version        = "17.00";
+string                    g_last_self_updated_ver  = "17.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_max_spread             = 70;
@@ -1048,6 +1048,69 @@ void CheckPropFirmDailyWatermark()
 }
 
 //+------------------------------------------------------------------+
+//| HITUNG NILAI 1 POINT PER 1.00 LOT DALAM MATA UANG AKUN           |
+//+------------------------------------------------------------------+
+double CalculatePointValueInDepositCurrency()
+{
+   double tick_val  = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+   double tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+   double point     = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+
+   if(tick_val <= 0) tick_val = 1.0;
+   if(tick_size <= 0) tick_size = (point > 0 ? point : 0.001);
+   if(point <= 0) point = 0.001;
+
+   double point_val = (tick_val / tick_size) * point;
+   if(point_val <= 0) point_val = 1.0;
+   return point_val;
+}
+
+//+------------------------------------------------------------------+
+//| MATEMATIKA KALKULASI LOT SWING ADAPTIF (MULTI-ASET)              |
+//+------------------------------------------------------------------+
+double CalculateSwingLotSize(int swing_sl_points)
+{
+   double equity = m_account.Equity();
+   if(equity <= 0) equity = m_account.Balance();
+   if(equity <= 0) return 0.01;
+
+   double lot = InpSwingFixedLot;
+
+   // Dalam mode % Risk, masing-masing sub-tiket mengambil 0.5% risiko (Total 1.0% per setup Swing)
+   if(InpLotType == LOT_RISK_PERCENT)
+   {
+      double sub_ticket_risk_usd = equity * ((InpRiskPercent * 0.5) / 100.0);
+      double point_val = CalculatePointValueInDepositCurrency();
+
+      if(swing_sl_points > 0 && point_val > 0)
+      {
+         lot = sub_ticket_risk_usd / (swing_sl_points * point_val);
+      }
+   }
+   else if(InpLotType == LOT_PER_BALANCE)
+   {
+      ENUM_ASSET_CLASS asset = GetAssetClass(_Symbol);
+      double asset_step = g_balance_step;
+      if(asset == ASSET_FOREX) asset_step = g_balance_step * 0.5; // Forex margin lebih ringan
+      lot = (equity / (asset_step * 2.0)) * g_lot_step;
+   }
+
+   double min_lot  = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+   double max_lot  = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
+   double lot_step = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
+
+   if(lot_step <= 0) lot_step = 0.01;
+   if(min_lot <= 0) min_lot = 0.01;
+   if(max_lot <= 0) max_lot = 100.0;
+
+   lot = MathFloor(lot / lot_step) * lot_step;
+   if(lot < min_lot) lot = min_lot;
+   if(lot > max_lot) lot = max_lot;
+
+   return NormalizeDouble(lot, 2);
+}
+
+//+------------------------------------------------------------------+
 //| MATEMATIKA KALKULASI LOT SNIPER (EXACT 1% RISK EQUITY)           |
 //+------------------------------------------------------------------+
 double CalculateSniperLotSize(int sl_points)
@@ -1060,9 +1123,7 @@ double CalculateSniperLotSize(int sl_points)
    if(InpLotType == LOT_RISK_PERCENT)
    {
       double risk_usd = equity * (InpRiskPercent / 100.0);
-      double tick_val = m_symbol.TickValue();
-      if(tick_val <= 0) tick_val = 1.0;
-      double point_val = tick_val / (m_symbol.TickSize() / m_symbol.Point());
+      double point_val = CalculatePointValueInDepositCurrency();
 
       if(sl_points > 0 && point_val > 0)
       {
@@ -1071,7 +1132,10 @@ double CalculateSniperLotSize(int sl_points)
    }
    else if(InpLotType == LOT_PER_BALANCE)
    {
-      lot = (equity / g_balance_step) * g_lot_step;
+      ENUM_ASSET_CLASS asset = GetAssetClass(_Symbol);
+      double asset_step = g_balance_step;
+      if(asset == ASSET_FOREX) asset_step = g_balance_step * 0.5; // Forex margin lebih bersahabat ($250/0.01)
+      lot = (equity / asset_step) * g_lot_step;
    }
    else
    {
@@ -1385,7 +1449,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Lot Size Model\", \"value\": \"`" + (InpLotType == LOT_RISK_PERCENT ? "1.0% Equity Risk (" + DoubleToString(current_lot, 2) + " Lot)" : "Fixed/Step") + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v16.00 Anti-Rungkad)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v17.00 Anti-Rungkad)! 🚀", 
                     "Sistem M15 Single-Entry Sniper siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng kuantitatif mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -1664,12 +1728,13 @@ void ExecuteSniperOrder(ENUM_ORDER_TYPE order_type, string trigger_source, doubl
 void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 {
    double point = m_symbol.Point();
-   double lot   = InpSwingFixedLot;
+   int swing_sl = InpSwingSLPoints, swing_tp1 = InpSwingTP1Points, swing_tp2 = InpSwingTP2RunnerPoints;
+   GetAdaptiveSwingParameters(_Symbol, swing_sl, swing_tp1, swing_tp2);
+
+   double lot = CalculateSwingLotSize(swing_sl);
    if(lot <= 0) lot = 0.01;
 
    int current_spread = (int)m_symbol.Spread();
-   int swing_sl = InpSwingSLPoints, swing_tp1 = InpSwingTP1Points, swing_tp2 = InpSwingTP2RunnerPoints;
-   GetAdaptiveSwingParameters(_Symbol, swing_sl, swing_tp1, swing_tp2);
 
    m_trade.SetExpertMagicNumber(InpMagicSwing);
 
@@ -1710,7 +1775,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v16.00)        |
+//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v17.00)        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
