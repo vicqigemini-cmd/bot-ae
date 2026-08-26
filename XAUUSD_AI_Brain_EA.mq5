@@ -68,7 +68,7 @@ input group "=== 4. PERISAI PENGAMAN & CIRCUIT BREAKERS ==="
 input bool                InpUseRedNewsGuard       = true;                  // Perisai Berita Merah AS (CPI, NFP, FOMC)
 input int                 InpNewsBufferMin         = 15;                    // Jeda Menit Sebelum & Sesudah Berita Merah
 input bool                InpUseFridayAutoClean    = true;                  // Bersihkan Semua Posisi Setiap Jumat Malam (21:00)
-input bool                InpUseLossCircuitBreaker = true;                  // Rem Pengaman Rugi Beruntun (2x SL = Cooldown 30 Mnt)
+input bool                InpUseLossCircuitBreaker = true;                  // Rem Pengaman Rugi Beruntun (2x SL = Cooldown 5 Mnt)
 input bool                InpUseDirectionalLock    = true;                  // Kunci 1 Arah (Haram Hedging saat Layer Aktif)
 input bool                InpUseRolloverGuard      = true;                  // Pelindung Jam Rollover Broker (23:50-01:10)
 input int                 InpMaxOpenPositions      = 3;                     // Max Posisi Scalping Aktif (Tri-Layer Sweet Spot)
@@ -568,12 +568,12 @@ void NotifyCloseTrade(string type, double close_price, double profit, ulong deal
       g_consecutive_losses++;
       if(InpUseLossCircuitBreaker && g_consecutive_losses >= 2)
       {
-         g_cooldown_until = TimeCurrent() + 30 * 60;
+         g_cooldown_until = TimeCurrent() + 5 * 60;
          string cooldown_fields = "{\"name\": \"⚠️ Status Rem Pengaman\", \"value\": \"`2x Loss Beruntun Terdeteksi`\", \"inline\": true}," +
-                                  "{\"name\": \"⏳ Durasi Cooldown\", \"value\": \"`30 Menit (Hingga " + TimeToString(g_cooldown_until, TIME_MINUTES) + ")`\", \"inline\": true}," +
+                                  "{\"name\": \"⏳ Durasi Cooldown\", \"value\": \"`5 Menit (Hingga " + TimeToString(g_cooldown_until, TIME_MINUTES) + ")`\", \"inline\": true}," +
                                   "{\"name\": \"🏦 Saldo Diamankan\", \"value\": \"`$" + DoubleToString(m_account.Balance(), 2) + "`\", \"inline\": true}";
          SendDiscordEmbed("🛡️ CONSECUTIVE LOSS CIRCUIT BREAKER AKTIF!", 
-                          "Bot otomatis istirahat 30 menit untuk mendinginkan akun dan menunggu pasar membentuk tren baru.", 
+                          "Bot otomatis istirahat 5 menit untuk mendinginkan akun dan menunggu pasar membentuk tren baru.", 
                           0xE67E22, cooldown_fields, true);
       }
    }
@@ -1231,7 +1231,7 @@ void OnTick()
    if(IsHighImpactNewsTime()) dashboard_status = "🚨 RED NEWS PAUSE (CPI/NFP/FOMC)";
    else if(IsFridayWeekendCleanTime()) dashboard_status = "📅 FRIDAY WEEKEND PAUSE (21:00+)";
    else if(IsRolloverTime()) dashboard_status = "⏸️ ROLLOVER TIME PAUSE (23:50-01:10)";
-   else if(TimeCurrent() < g_cooldown_until) dashboard_status = "⏳ LOSS COOLDOWN (30 Mnt Pause)";
+   else if(TimeCurrent() < g_cooldown_until) dashboard_status = "⏳ LOSS COOLDOWN (5 Mnt Pause)";
    else if(buy_signal) dashboard_status = "🟢 APEX BUY DETECTED! (" + trigger_reason + ")";
    else if(sell_signal) dashboard_status = "🔴 APEX SELL DETECTED! (" + trigger_reason + ")";
    DisplayAIDashboard(ema5_curr, ema13_curr, stoch_k, stoch_d, vwap, vwap_up, vwap_low, regime_str, dashboard_status, dyn_sl_pts, dyn_tp_pts);
