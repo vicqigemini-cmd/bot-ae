@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
 //|  HYPER-FAST M1 PRICE ACTION & MOMENTUM SCALPER FOR GOLD (XAUUSD) |
-//|  (Pure M1 Micro-Structure • Wick Sniper • Fast Stoch • Multi-7)  |
+//|  (Pure M1 Micro-Structure • Wick Sniper • Fast Stoch • Tri-Layer)|
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "4.00"
-#property description "EA Scalping M1 Gold (XAUUSD) Hyper-Fast Price Action & Momentum Sniper. Eksekusi Cepat, Rejection Wick, Fast Stoch, Tanpa Delay."
+#property version   "4.10"
+#property description "EA Scalping M1 Gold (XAUUSD) Hyper-Fast Price Action & Momentum Sniper. Tri-Layer Grid (Max 3 Posisi), Rejection Wick, Fast Stoch, Tanpa Delay."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -55,7 +55,7 @@ input bool                InpUseMomentumBreakout   = true;                  // E
 input bool                InpUseFastStochFilter    = true;                  // Konfirmasi Fast Stochastic M1 (5, 3, 3)
 input int                 InpMinLayerDistancePts   = 30;                    // Jarak Minimal Antar Layer (Points, 30 pts = 3 pips)
 
-input group "=== 4. MONEY & RISK MANAGEMENT ==="
+input group "=== 4. MONEY & RISK MANAGEMENT (TRI-LAYER SWEET SPOT) ==="
 input ENUM_LOT_TYPE       InpLotType               = LOT_PER_BALANCE;       // Mode Lot Sizing
 input double              InpFixedLot              = 0.01;                  // Base Lot per Kelipatan
 input double              InpBalanceStep           = 500.0;                 // Saldo per Kelipatan Lot ($500 = 0.01 Lot)
@@ -63,7 +63,7 @@ input double              InpRiskPercent           = 1.0;                   // R
 input int                 InpStopLossPoints        = 120;                   // Stop Loss (Points, 120 pts = 12 pips)
 input int                 InpTakeProfitPoints      = 200;                   // Take Profit (Points, 200 pts = 20 pips)
 input int                 InpMaxSpreadPoints       = 80;                    // Max Spread Filter (Points)
-input int                 InpMaxOpenPositions      = 7;                     // Max Posisi Scalping Aktif (Max 7 Entry)
+input int                 InpMaxOpenPositions      = 3;                     // Max Posisi Scalping Aktif (Maksimal 3 Layer Sweet Spot)
 
 input group "=== 5. FAST BREAK-EVEN & AGGRESSIVE TRAILING ==="
 input bool                InpUseBreakEven          = true;                  // Aktifkan Break-Even Cepat
@@ -89,13 +89,13 @@ input int                 InpBB_Period_M1          = 20;                    // M
 input double              InpBB_Dev_M1             = 2.0;                   // M1 BB Deviation
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "4.00";
+string                    g_current_version        = "4.10";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_sl_points              = 120;
 int                       g_tp_points              = 200;
 int                       g_max_spread             = 80;
-int                       g_max_open_pos           = 7;
+int                       g_max_open_pos           = 3;
 int                       g_min_layer_dist         = 30;
 bool                      g_use_trailing           = true;
 int                       g_trailing_start         = 100;
@@ -242,14 +242,14 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
             double target_usd = cur_bal * (g_daily_target_pct / 100.0);
             double loss_usd = cur_bal * (g_daily_max_loss_pct / 100.0);
 
-            string update_fields = "{\"name\": \"⚡ Hyper-Scalper Engine\", \"value\": \"`v" + g_current_version + " (Pure M1 Micro-Action)`\", \"inline\": true}," +
+            string update_fields = "{\"name\": \"⚡ Hyper-Scalper Engine\", \"value\": \"`v" + g_current_version + " (Tri-Layer Sniper)`\", \"inline\": true}," +
                                    "{\"name\": \"🎯 Target Harian (15%)\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (" + DoubleToString(g_daily_target_pct, 0) + "% Wallet)`\", \"inline\": true}," +
                                    "{\"name\": \"🛡️ Max Loss Harian (7%)\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (" + DoubleToString(g_daily_max_loss_pct, 0) + "% Wallet)`\", \"inline\": true}," +
-                                   "{\"name\": \"⚡ Smart Layering\", \"value\": \"`Max " + IntegerToString(g_max_open_pos) + " Posisi (Min " + IntegerToString(g_min_layer_dist / 10) + " Pips)`\", \"inline\": true}," +
+                                   "{\"name\": \"⚡ Smart Layering\", \"value\": \"`Max " + IntegerToString(g_max_open_pos) + " Posisi (Tri-Layer Sweet Spot)`\", \"inline\": true}," +
                                    "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot`\", \"inline\": true}";
             
-            SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (HYPER-SCALPER v" + g_current_version + ")!", 
-                             "Logika Hyper-Fast M1 Price Action & Momentum Sniper resmi disinkronkan!", 
+            SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (TRI-LAYER v" + g_current_version + ")!", 
+                             "Logika Tri-Sniper Grid (Maksimal 3 Layer) resmi aktif di seluruh ekosistem!", 
                              0x9B59B6, update_fields, false);
          }
       }
@@ -332,7 +332,7 @@ void NotifyAITrade(string type, double price, double lot_used, double sl, double
 
    string fields = "{\"name\": \"🏷️ Tipe Order\", \"value\": \"" + emoji + " **" + type + " (Layer " + IntegerToString(current_layers) + "/" + IntegerToString(g_max_open_pos) + ")**\", \"inline\": true}," +
                    "{\"name\": \"⚡ Pemicu Sniper\", \"value\": \"`" + trigger_source + "`\", \"inline\": true}," +
-                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Hyper-Scalper)`\", \"inline\": true}," +
+                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Tri-Sniper)`\", \"inline\": true}," +
                    "{\"name\": \"📊 Simbol & Lot\", \"value\": \"`" + _Symbol + "` (**" + DoubleToString(lot_used, 2) + " Lot**)\", \"inline\": true}," +
                    "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(price, _Digits) + "` (Best Wick Entry)\", \"inline\": true}," +
                    "{\"name\": \"🛡️ Stop Loss\", \"value\": \"`" + DoubleToString(sl, _Digits) + "` (-" + IntegerToString(g_sl_points / 10) + " Pips)\", \"inline\": true}," +
@@ -368,7 +368,7 @@ void NotifyCloseTrade(string type, double close_price, double profit, ulong deal
    double daily_total_pl = GetDailyProfitLoss();
 
    string fields = "{\"name\": \"📊 Hasil Transaksi\", \"value\": \"" + result_emoji + "\", \"inline\": true}," +
-                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Hyper-Scalper)`\", \"inline\": true}," +
+                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Tri-Sniper)`\", \"inline\": true}," +
                    "{\"name\": \"💵 Realized PnL\", \"value\": \"**" + pnl_sign + DoubleToString(abs_profit, 2) + "**\", \"inline\": true}," +
                    "{\"name\": \"🏦 Saldo Akun Terkini\", \"value\": \"**`$" + DoubleToString(current_balance, 2) + "`**\", \"inline\": true}," +
                    "{\"name\": \"🏷️ Posisi Ditutup\", \"value\": \"`" + type + " " + _Symbol + " (" + DoubleToString(volume, 2) + " Lot)`\", \"inline\": true}," +
@@ -544,15 +544,15 @@ int OnInit()
    double loss_usd = current_bal * (g_daily_max_loss_pct / 100.0);
    double current_lot = CalculateLotSize(g_sl_points);
 
-   string startup_fields = "{\"name\": \"⚡ Engine Scalper\", \"value\": \"`Hyper-Fast M1 Price Action (v4.00)`\", \"inline\": true}," +
+   string startup_fields = "{\"name\": \"⚡ Engine Scalper\", \"value\": \"`Hyper-Fast M1 Tri-Layer (v4.10)`\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target Cuan Harian\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (15% Wallet)`\", \"inline\": true}," +
                            "{\"name\": \"🛡️ Max Loss Harian\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (7% Wallet)`\", \"inline\": true}," +
-                           "{\"name\": \"⚡ Smart Layering\", \"value\": \"`Max " + IntegerToString(g_max_open_pos) + " Entry (Min " + IntegerToString(g_min_layer_dist / 10) + " Pips)`\", \"inline\": true}," +
+                           "{\"name\": \"⚡ Tri-Layer Grid\", \"value\": \"`Max 3 Posisi (Min Jarak " + IntegerToString(g_min_layer_dist / 10) + " Pips)`\", \"inline\": true}," +
                            "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Lot: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target SL / TP\", \"value\": \"`SL: " + IntegerToString(g_sl_points / 10) + " Pips | TP: " + IntegerToString(g_tp_points / 10) + " Pips`\", \"inline\": true}";
 
-   SendDiscordEmbed("⚡ XAUUSD Hyper-Scalper Aktif (v4.00 Pure M1)! 🚀", 
-                    "Mesin Hyper-Fast Scalping aktif: M1 Wick Rejection Sniper + EMA 5/13 Momentum Cross siap berburu!", 
+   SendDiscordEmbed("⚡ XAUUSD Hyper-Scalper Aktif (v4.10 Tri-Layer Grid)! 🚀", 
+                    "Mesin Hyper-Fast Scalping aktif: Maksimal 3 Layer Sweet Spot + M1 Wick Rejection Sniper siap berburu!", 
                     0x3498DB, startup_fields, false);
 
    return INIT_SUCCEEDED;
@@ -600,7 +600,7 @@ void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_
    info += "=========================================================\n";
    info += StringFormat(" 💰 Balance / Equity : $%.2f / $%.2f\n", m_account.Balance(), m_account.Equity());
    info += StringFormat(" 📈 Auto-Lot Mode    : %.2f Lot ($%.0f = %.2f Lot)\n", lot, g_balance_step, g_lot_step);
-   info += StringFormat(" ⚡ Posisi Aktif     : %d / %d Posisi (Min Jarak %d Pts)\n", active_orders, g_max_open_pos, g_min_layer_dist);
+   info += StringFormat(" ⚡ Posisi Aktif     : %d / %d Posisi (Tri-Layer Grid)\n", active_orders, g_max_open_pos);
    info += "---------------------------------------------------------\n";
    info += " [M1 REAL-TIME MICRO-INDICATORS]\n";
    info += StringFormat("  📈 M1 Momentum     : EMA5 (%.2f) vs EMA13 (%.2f) -> %s\n", ema5, ema13, (ema5 > ema13) ? "BULLISH 🟢" : "BEARISH 🔴");
@@ -735,7 +735,7 @@ void ExecuteFastScalp(ENUM_ORDER_TYPE order_type, string trigger_source, int cur
 
       if(m_trade.Buy(lot, _Symbol, ask, sl, tp, comment_label))
       {
-         Print("🚀 [HYPER BUY EXECUTED - Layer ", current_active_count + 1, "] Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", ask);
+         Print("🚀 [HYPER BUY EXECUTED - Layer ", current_active_count + 1, "/3] Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", ask);
          NotifyAITrade("BUY", ask, lot, sl, tp, m_trade.ResultOrder(), trigger_source, current_spread, current_active_count + 1);
          last_trade_time = TimeCurrent();
       }
@@ -752,7 +752,7 @@ void ExecuteFastScalp(ENUM_ORDER_TYPE order_type, string trigger_source, int cur
 
       if(m_trade.Sell(lot, _Symbol, bid, sl, tp, comment_label))
       {
-         Print("🚀 [HYPER SELL EXECUTED - Layer ", current_active_count + 1, "] Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", bid);
+         Print("🚀 [HYPER SELL EXECUTED - Layer ", current_active_count + 1, "/3] Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", bid);
          NotifyAITrade("SELL", bid, lot, sl, tp, m_trade.ResultOrder(), trigger_source, current_spread, current_active_count + 1);
          last_trade_time = TimeCurrent();
       }
@@ -820,7 +820,6 @@ void OnTick()
 
    double lower_wick = MathMin(bar1_open, bar1_close) - bar1_low;
    double upper_wick = bar1_high - MathMax(bar1_open, bar1_close);
-   double body_size  = MathAbs(bar1_close - bar1_open);
 
    bool is_bullish_pinbar = (bar1_range > 0) && (lower_wick >= 0.45 * bar1_range) && (bar1_close > bar1_low);
    bool is_bearish_pinbar = (bar1_range > 0) && (upper_wick >= 0.45 * bar1_range) && (bar1_close < bar1_high);
@@ -835,13 +834,13 @@ void OnTick()
    // --- SKENARIO A: WICK REJECTION SNIPER (Beli di Ujung Bawah / Jual di Pucuk Atas) ---
    if(InpUseWickRejection)
    {
-      // BUY: Harga menyentuh / menembus Lower BB + Muncul Jarum Bawah Panjang + Stoch Oversold (< 25) memotong ke atas
+      // BUY: Harga menyentuh / menembus Lower BB + Muncul Jarum Bawah Panjang + Stoch Oversold (< 35)
       if((bar1_low <= bb_low || rates_m1[0].low <= bb_low) && (is_bullish_pinbar || is_bullish_engulf) && (stoch_k < 35 || (prev_stoch_k < 25 && stoch_k > prev_stoch_k)))
       {
          buy_signal = true;
          trigger_reason = "M1 Wick Rejection di Lower BB (Bottom Sniper)";
       }
-      // SELL: Harga menyentuh / menembus Upper BB + Muncul Jarum Atas Panjang + Stoch Overbought (> 75) memotong ke bawah
+      // SELL: Harga menyentuh / menembus Upper BB + Muncul Jarum Atas Panjang + Stoch Overbought (> 65)
       else if((bar1_high >= bb_up || rates_m1[0].high >= bb_up) && (is_bearish_pinbar || is_bearish_engulf) && (stoch_k > 65 || (prev_stoch_k > 75 && stoch_k < prev_stoch_k)))
       {
          sell_signal = true;
@@ -888,7 +887,7 @@ void OnTick()
       if(daily_pl >= dynamic_target_usd || daily_pl <= -dynamic_max_loss_usd) return;
    }
 
-   // 10. Validasi Spread & Maksimal 7 Posisi
+   // 10. Validasi Spread & Maksimal 3 Posisi (Tri-Layer Sweet Spot)
    if(m_symbol.Spread() > g_max_spread) return;
 
    int active_orders = 0;
@@ -904,7 +903,7 @@ void OnTick()
    // 11. Cooldown Minimal 5 Detik Antar Order untuk Mencegah Double-Trigger
    if(TimeCurrent() - last_trade_time < 5) return;
 
-   // 12. EKSEKUSI HYPER-FAST SNIPER ORDER
+   // 12. EKSEKUSI HYPER-FAST SNIPER ORDER (Maksimal 3 Layer)
    if(buy_signal)
    {
       ExecuteFastScalp(ORDER_TYPE_BUY, trigger_reason, active_orders);
