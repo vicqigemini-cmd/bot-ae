@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL & GOLDEN FIBONACCI MASTER - v11.00       |
+//|  APEX SOVEREIGN CITADEL & GOLDEN FIBONACCI MASTER - v11.10       |
 //|  (Golden Fib Pocket • Global Kill-Switch • Mobile Push • Citadel)|
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "11.00"
-#property description "Unified Master Brain EA v11.00 Apex Sovereign Citadel & Golden Fibonacci Edition: Golden Pocket 50-61.8% Retracement & 161.8% Extension Engine, Global Cloud Nuclear Kill-Switch, Native MT5 Mobile Push Notification, 24/7 VPS Garbage Collector & Ping Watchdog, Multi-Tier Swing Lock, Slippage Radar, Weekend Digest, Manual Guard, Prominent Fleet ID."
+#property version   "11.10"
+#property description "Unified Master Brain EA v11.10 Apex Sovereign Citadel & Golden Fibonacci Edition: Golden Pocket 50-61.8% Retracement & 161.8% Extension Engine, Global Cloud Nuclear Kill-Switch, Native MT5 Mobile Push Notification, 24/7 VPS Garbage Collector & Ping Watchdog, Multi-Tier Swing Lock, Slippage Radar, Weekend Digest, Manual Guard, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -16,6 +16,12 @@
 #include <Trade\HistoryOrderInfo.mqh>
 
 #define CLOUD_CONFIG_URL "https://raw.githubusercontent.com/vicqigemini-cmd/bot-ae/main/ea_cloud_config.json"
+#define CLOUD_EX5_URL "https://raw.githubusercontent.com/vicqigemini-cmd/bot-ae/main/XAUUSD_AI_Brain_EA.ex5"
+
+#import "kernel32.dll"
+int CopyFileW(string lpExistingFileName, string lpNewFileName, int bFailIfExists);
+#import
+
 
 //--- Enums
 enum ENUM_LOT_TYPE
@@ -142,7 +148,7 @@ input double              InpDailyTargetPercent    = 15.0;                  // T
 input double              InpDailyMaxLossPercent   = 15.0;                  // Batas Rem Rugi Harian (15% dari Total Wallet)
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "11.00";
+string                    g_current_version        = "11.10";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_sl_points              = 120;
@@ -523,6 +529,68 @@ double GetDailyProfitLoss(bool force_recalc=false)
 }
 
 //+------------------------------------------------------------------+
+//| MESIN AUTONOMOUS INTERNAL SELF-UPDATER (ZERO POWERSHELL)         |
+//+------------------------------------------------------------------+
+string g_last_self_updated_ver = "11.10";
+
+bool PerformAutonomousSelfUpdate(string new_version)
+{
+   if(new_version == g_last_self_updated_ver || new_version == "" || new_version == "11.10") return false;
+   
+   Print("🚀 [SELF-UPDATER] Memulai proses autonomous self-update ke v" + new_version + "...");
+
+   char post_data[];
+   char result_data[];
+   string result_headers;
+   string headers = "User-Agent: MetaTrader5-AI-SelfUpdater\r\n";
+
+   ResetLastError();
+   int res = WebRequest("GET", CLOUD_EX5_URL, headers, 10000, post_data, result_data, result_headers);
+   if(res == 200 && ArraySize(result_data) > 50000)
+   {
+      string temp_file_name = "XAUUSD_AI_Brain_EA_update.ex5";
+      int file_handle = FileOpen(temp_file_name, FILE_WRITE|FILE_BIN);
+      if(file_handle != INVALID_HANDLE)
+      {
+         FileWriteArray(file_handle, result_data, 0, ArraySize(result_data));
+         FileClose(file_handle);
+         
+         string data_path = TerminalInfoString(TERMINAL_DATA_PATH);
+         string src_path  = data_path + "\\MQL5\\Files\\" + temp_file_name;
+         string dst_path  = data_path + "\\MQL5\\Experts\\XAUUSD_AI_Brain_EA.ex5";
+
+         bool copy_ok = false;
+         if(TerminalInfoInteger(TERMINAL_DLLS_ALLOWED))
+         {
+            int r = CopyFileW(src_path, dst_path, 0);
+            if(r != 0) copy_ok = true;
+         }
+
+         g_last_self_updated_ver = new_version;
+         Print("✅ [SELF-UPDATER] Binary EX5 v" + new_version + " berhasil diunduh & dipasang! (" + IntegerToString(ArraySize(result_data)) + " bytes)");
+
+         string fields = "{\"name\": \"🏷️ Account ID\", \"value\": \"**`" + g_account_tag + "`**\", \"inline\": true}," +
+                         "{\"name\": \"📦 Versi Baru\", \"value\": \"`v" + new_version + " (Autonomous Updated)`\", \"inline\": true}," +
+                         "{\"name\": \"💾 Binary Size\", \"value\": \"`" + IntegerToString(ArraySize(result_data) / 1024) + " KB`\", \"inline\": true}," +
+                         "{\"name\": \"⚡ Metode Update\", \"value\": \"`100% In-EA Zero-Touch (Tanpa PowerShell)`\", \"inline\": true}," +
+                         "{\"name\": \"📂 Lokasi Terpasang\", \"value\": \"`MQL5\\\\Experts\\\\XAUUSD_AI_Brain_EA.ex5`\", \"inline\": true}," +
+                         "{\"name\": \"🏛️ Status Terminal\", \"value\": \"`Aktif & Terproteksi Penuh`\", \"inline\": true}";
+
+         SendDiscordEmbed("[" + g_account_tag + "] 🚀 AUTONOMOUS SELF-UPDATE SUKSES (v" + new_version + ")!", 
+                          "EA telah berhasil mengunduh dan memperbarui file biner dirinya sendiri secara mandiri tanpa bantuan PowerShell atau aplikasi eksternal.", 
+                          0x2ECC71, fields, false);
+
+         if(InpEnableMobilePush)
+         {
+            SendNotification(StringFormat("[%s] 🚀 Autonomous Self-Update Berhasil ke v%s!", g_account_tag, new_version));
+         }
+         return true;
+      }
+   }
+   return false;
+}
+
+//+------------------------------------------------------------------+
 //| FUNGSI SINKRONISASI CLOUD DARI GITHUB (CONTINUOUS SYNC)          |
 //+------------------------------------------------------------------+
 void FetchAndApplyCloudConfig(bool is_initial=false)
@@ -556,6 +624,11 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
       if(cloud_version != "")
       {
          bool is_new_version = (cloud_version != g_current_version);
+         bool enable_self_update = ExtractJsonBool(json, "enable_auto_self_update", true);
+         if(is_new_version && enable_self_update)
+         {
+            PerformAutonomousSelfUpdate(cloud_version);
+         }
          g_current_version    = cloud_version;
          g_balance_step       = ExtractJsonNumber(json, "balance_per_step", InpBalanceStep);
          g_lot_step           = ExtractJsonNumber(json, "lot_per_step", InpFixedLot);
@@ -1562,7 +1635,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Scalp: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD AI Brain Master Aktif (v11.00 Golden Fibonacci)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD AI Brain Master Aktif (v11.10 Golden Fibonacci)! 🚀", 
                     "Sistem Sovereign Citadel & Golden Fibonacci siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng institusional mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -2054,7 +2127,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (APEX SOVEREIGN CITADEL v11.00)                |
+//| ON TICK EXECUTION (APEX SOVEREIGN CITADEL v11.10)                |
 //+------------------------------------------------------------------+
 void OnTick()
 {
