@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
 //|                                     Discord_Sentinel_EA_MT5.mq5  |
-//|             Multi-Timeframe Scalper EA (Bias M15 • Entry M1)     |
+//|    Multi-Timeframe Scalper EA (Bias M15 • Entry M1 • Auto-Lot)   |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "2.00"
+#property version   "2.10"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -20,8 +20,11 @@ input bool     InpEnableDiscord     = true;                                     
 input string   InpDiscordMention    = "";                                                                                                                              // Tag Mention (Kosongkan untuk channel pribadi)
 input string   InpBotName           = "EA Scalper Sentinel MT5";                                                                                                       // Nama Bot Discord
 
-input group "=== PENGATURAN SCALPING & LOT ==="
-input double   InpLotSize           = 0.01;      // Ukuran Lot Scalping
+input group "=== PENGATURAN AUTO-LOT & MONEY MANAGEMENT ==="
+input bool     InpUseAutoLot        = true;      // Gunakan Auto-Lot Berdasarkan Saldo
+input double   InpBalancePerStep    = 100.0;     // Kelipatan Saldo ($100)
+input double   InpLotPerStep        = 0.01;      // Lot per Kelipatan Saldo (0.01 Lot per $100)
+input double   InpFixedLotSize      = 0.01;      // Lot Tetap (Jika Auto-Lot Dimatikan)
 input int      InpStopLossPips      = 15;        // Stop Loss Scalping (Pips)
 input int      InpTakeProfitPips    = 30;        // Take Profit Scalping (Pips)
 input ulong    InpMagicNumber       = 778899;    // Magic Number EA
@@ -52,6 +55,34 @@ int            m_h_m1_fast_ema;
 int            m_h_m1_slow_ema;
 int            m_h_m1_rsi;
 datetime       m_last_bar_time;
+
+//+------------------------------------------------------------------+
+//| FUNGSI KALKULASI AUTO-LOT (0.01 LOT PER $100 SALDO)              |
+//+------------------------------------------------------------------+
+double CalculateLotSize()
+{
+   if(!InpUseAutoLot) return InpFixedLotSize;
+
+   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+   if(balance <= 0) balance = AccountInfoDouble(ACCOUNT_EQUITY);
+
+   // Formula: 0.01 lot untuk setiap $100 modal
+   double calculated_lot = (balance / InpBalancePerStep) * InpLotPerStep;
+
+   double min_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+   double max_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
+   double step_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
+
+   if(step_lot > 0)
+   {
+      calculated_lot = MathFloor(calculated_lot / step_lot) * step_lot;
+   }
+
+   if(calculated_lot < min_lot) calculated_lot = min_lot;
+   if(calculated_lot > max_lot) calculated_lot = max_lot;
+
+   return NormalizeDouble(calculated_lot, 2);
+}
 
 //+------------------------------------------------------------------+
 //| FUNGSI PENGIRIM DISCORD WEBHOOK                                  |
@@ -101,21 +132,22 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
 //+------------------------------------------------------------------+
 //| FORMAT NOTIFIKASI ORDER DISCORD                                  |
 //+------------------------------------------------------------------+
-void NotifyOpenTrade(string type, double price, double sl, double tp, ulong ticket, string bias_text)
+void NotifyOpenTrade(string type, double price, double lot_used, double sl, double tp, ulong ticket, string bias_text)
 {
    int embed_color = (type == "BUY") ? 0x2ECC71 : 0xE74C3C;
    string emoji = (type == "BUY") ? "🟢" : "🔴";
 
    string fields = "{\"name\": \"🏷️ Tipe Order\", \"value\": \"" + emoji + " **" + type + " (Scalp M1)**\", \"inline\": true}," +
                    "{\"name\": \"🧭 Bias Tren M15\", \"value\": \"`" + bias_text + "`\", \"inline\": true}," +
-                   "{\"name\": \"📊 Simbol & Lot\", \"value\": \"`" + _Symbol + "` (" + DoubleToString(InpLotSize, 2) + " Lot)\", \"inline\": true}," +
+                   "{\"name\": \"📊 Simbol & Lot\", \"value\": \"`" + _Symbol + "` (**" + DoubleToString(lot_used, 2) + " Lot**)\", \"inline\": true}," +
                    "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(price, _Digits) + "`\", \"inline\": true}," +
                    "{\"name\": \"🛡️ Stop Loss\", \"value\": \"`" + DoubleToString(sl, _Digits) + "` (-" + IntegerToString(InpStopLossPips) + " Pips)\", \"inline\": true}," +
                    "{\"name\": \"🎯 Take Profit\", \"value\": \"`" + DoubleToString(tp, _Digits) + "` (+" + IntegerToString(InpTakeProfitPips) + " Pips)\", \"inline\": true}," +
+                   "{\"name\": \"💰 Saldo Akun\", \"value\": \"`$" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + "` (Auto-Lot Proporsional)\", \"inline\": true}," +
                    "{\"name\": \"🎫 Ticket ID\", \"value\": \"`#" + IntegerToString(ticket) + "`\", \"inline\": true}";
 
    SendDiscordEmbed("⚡ EKSEKUSI SCALPING BARU (" + type + ")", 
-                    "Order scalping dieksekusi berdasarkan keselarasan Bias M15 dan Crossover Momentum M1.", 
+                    "Order scalping dieksekusi berdasarkan keselarasan Bias M15 dan Crossover Momentum M1 dengan Auto-Lot proporsional.", 
                     embed_color, 
                     fields, false);
 }
@@ -142,11 +174,9 @@ int OnInit()
    m_trade.SetExpertMagicNumber(InpMagicNumber);
    m_trade.SetDeviationInPoints(InpSlippage);
 
-   // Inisialisasi Indikator Timeframe M15 (Bias Tren)
    m_h_m15_fast_ema = iMA(_Symbol, PERIOD_M15, InpM15FastEMA, 0, MODE_EMA, PRICE_CLOSE);
    m_h_m15_slow_ema = iMA(_Symbol, PERIOD_M15, InpM15SlowEMA, 0, MODE_EMA, PRICE_CLOSE);
 
-   // Inisialisasi Indikator Timeframe M1 (Entry Scalping Trigger)
    m_h_m1_fast_ema  = iMA(_Symbol, PERIOD_M1, InpM1FastEMA, 0, MODE_EMA, PRICE_CLOSE);
    m_h_m1_slow_ema  = iMA(_Symbol, PERIOD_M1, InpM1SlowEMA, 0, MODE_EMA, PRICE_CLOSE);
    m_h_m1_rsi       = iRSI(_Symbol, PERIOD_M1, InpM1RSIPeriod, PRICE_CLOSE);
@@ -158,12 +188,14 @@ int OnInit()
       return INIT_FAILED;
    }
 
+   double current_lot = CalculateLotSize();
    string startup_fields = "{\"name\": \"🧭 Strategi Multi-Timeframe\", \"value\": \"`Bias: M15 | Entry: M1`\", \"inline\": true}," +
+                           "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$100 = 0.01 Lot` (Lot Saat Ini: **" + DoubleToString(current_lot, 2) + " Lot**)\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target Scalping\", \"value\": \"`SL: " + IntegerToString(InpStopLossPips) + " Pips | TP: " + IntegerToString(InpTakeProfitPips) + " Pips`\", \"inline\": true}," +
                            "{\"name\": \"💰 Balance / Equity\", \"value\": \"`$" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + " / $" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2) + "`\", \"inline\": true}";
 
    SendDiscordEmbed("🤖 EA Scalper Sentinel MT5 Berhasil Aktif!", 
-                    "Expert Advisor siap mengeksekusi Scalping di Timeframe M1 dengan konfirmasi arah tren Timeframe M15.", 
+                    "Expert Advisor siap mengeksekusi Scalping di Timeframe M1 dengan Auto-Lot proporsional ($100 = 0.01 Lot).", 
                     0x3498DB, startup_fields, false);
 
    return INIT_SUCCEEDED;
@@ -239,7 +271,6 @@ void OnTick()
    if(current_bar_time == m_last_bar_time) return;
    m_last_bar_time = current_bar_time;
 
-   // Hanya 1 posisi scalping aktif per waktu untuk mengontrol risiko
    int total_orders = 0;
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
@@ -254,7 +285,10 @@ void OnTick()
 
    if(total_orders > 0) return;
 
-   // 1. Ambil Data Indikator BIAS M15
+   // 1. Hitung Lot Sesuai Saldo Terkini ($100 = 0.01 Lot)
+   double lot_to_trade = CalculateLotSize();
+
+   // 2. Ambil Data Indikator BIAS M15
    double m15_fast[], m15_slow[];
    ArraySetAsSeries(m15_fast, true);
    ArraySetAsSeries(m15_slow, true);
@@ -264,7 +298,7 @@ void OnTick()
    bool m15_bullish_bias = (m15_fast[0] > m15_slow[0]);
    bool m15_bearish_bias = (m15_fast[0] < m15_slow[0]);
 
-   // 2. Ambil Data Indikator ENTRY M1
+   // 3. Ambil Data Indikator ENTRY M1
    double m1_fast[], m1_slow[], m1_rsi[];
    ArraySetAsSeries(m1_fast, true);
    ArraySetAsSeries(m1_slow, true);
@@ -277,30 +311,24 @@ void OnTick()
    double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    double point = _Point;
 
-   // 3. SINYAL BUY SCALPING:
-   // • Bias M15 Bullish (Fast EMA > Slow EMA di M15)
-   // • Trigger M1 Golden Cross (Fast EMA 9 melintasi Slow EMA 21 di M1)
-   // • RSI M1 > 45 && < Overbought (75)
+   // 4. SINYAL BUY SCALPING:
    if(m15_bullish_bias && (m1_fast[1] <= m1_slow[1] && m1_fast[0] > m1_slow[0]) && (m1_rsi[0] > 45.0 && m1_rsi[0] < InpRSIOverbought))
    {
       double sl = ask - (InpStopLossPips * 10 * point);
       double tp = ask + (InpTakeProfitPips * 10 * point);
-      if(m_trade.Buy(InpLotSize, _Symbol, ask, sl, tp, "Scalp BUY M1"))
+      if(m_trade.Buy(lot_to_trade, _Symbol, ask, sl, tp, "Scalp BUY M1"))
       {
-         NotifyOpenTrade("BUY", ask, sl, tp, m_trade.ResultOrder(), "Bullish (EMA 20 > EMA 50)");
+         NotifyOpenTrade("BUY", ask, lot_to_trade, sl, tp, m_trade.ResultOrder(), "Bullish (EMA 20 > EMA 50)");
       }
    }
-   // 4. SINYAL SELL SCALPING:
-   // • Bias M15 Bearish (Fast EMA < Slow EMA di M15)
-   // • Trigger M1 Death Cross (Fast EMA 9 melintasi Slow EMA 21 di M1)
-   // • RSI M1 < 55 && > Oversold (25)
+   // 5. SINYAL SELL SCALPING:
    else if(m15_bearish_bias && (m1_fast[1] >= m1_slow[1] && m1_fast[0] < m1_slow[0]) && (m1_rsi[0] < 55.0 && m1_rsi[0] > InpRSIOversold))
    {
       double sl = bid + (InpStopLossPips * 10 * point);
       double tp = bid - (InpTakeProfitPips * 10 * point);
-      if(m_trade.Sell(InpLotSize, _Symbol, bid, sl, tp, "Scalp SELL M1"))
+      if(m_trade.Sell(lot_to_trade, _Symbol, bid, sl, tp, "Scalp SELL M1"))
       {
-         NotifyOpenTrade("SELL", bid, sl, tp, m_trade.ResultOrder(), "Bearish (EMA 20 < EMA 50)");
+         NotifyOpenTrade("SELL", bid, lot_to_trade, sl, tp, m_trade.ResultOrder(), "Bearish (EMA 20 < EMA 50)");
       }
    }
 }
