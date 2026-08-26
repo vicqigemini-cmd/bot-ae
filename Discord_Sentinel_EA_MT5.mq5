@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX QUANTITATIVE INSTITUTIONAL GOLD SCALPER (XAUUSD) - v5.00   |
-//|  (Regime Switching • Session VWAP • Asian Sweep • Defend The Bag)|
+//|  APEX QUANTITATIVE INSTITUTIONAL GOLD SCALPER (XAUUSD) - v5.10   |
+//|  (Active Micro-Pullback Sniper • Session VWAP • Asian Sweep)     |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "5.00"
-#property description "EA Scalping M1 Gold (XAUUSD) Apex Quantitative Edition. 5 Pilar Institusional: Auto Regime Switching, Session VWAP Bands, Asian Sweep Trap, Triple-Screen Fractal, Defend-The-Bag Compounding."
+#property version   "5.10"
+#property description "EA Scalping M1 Gold (XAUUSD) Apex Active Edition. Pemicu Cepat Micro-Pullback EMA 5/13, Session VWAP Bands, Asian Sweep Trap, Defend-The-Bag, Dynamic ATR."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -28,8 +28,8 @@ enum ENUM_LOT_TYPE
 enum ENUM_MARKET_REGIME
 {
    REGIME_SIDEWAYS_RANGE = 0, // Pasar Ranging / Sideways (Mean-Reversion Mode)
-   REGIME_STRONG_TREND   = 1, // Pasar Trending Kuat (Momentum Breakout Mode)
-   REGIME_CHAOTIC_NOISE  = 2  // Pasar Noise Ekstrem (Standby / Filtered)
+   REGIME_STRONG_TREND   = 1, // Pasar Trending Kuat (Momentum Breakout & Pullback Mode)
+   REGIME_CHAOTIC_NOISE  = 2  // Pasar Noise Ekstrem (Standby)
 };
 
 struct STrackedPos
@@ -54,13 +54,13 @@ input group "=== 2. OTA CLOUD AUTO-SYNC (1x PASANG = AUTO UPDATE) ==="
 input bool                InpEnableCloudSync       = true;                  // Aktifkan Sinkronisasi Cloud dari GitHub
 input int                 InpSyncIntervalMin       = 5;                     // Interval Cek Update Cloud (Menit)
 
-input group "=== 3. 5 PILAR KUANTITATIF INSTITUSIONAL ==="
+input group "=== 3. 5 PILAR KUANTITATIF & RESPONSIVITAS TINGGI ==="
 input ulong               InpMagicNumber           = 202611;                // Magic Number EA
 input string              InpTradeComment          = "Apex_XAU";            // Label Order
-input bool                InpUseRegimeSwitching    = true;                  // Pilar 1: Auto-Switch Strategi (Sideways vs Trend)
-input bool                InpUseSessionVWAP        = true;                  // Pilar 2: Session VWAP Institutional Bands (+/- 1.5 SD)
+input bool                InpUseRegimeSwitching    = true;                  // Pilar 1: Auto-Switch Strategi (Pullback vs Mean Reversion)
+input bool                InpUseSessionVWAP        = true;                  // Pilar 2: Session VWAP Institutional Bands (+/- 1.2 SD)
 input bool                InpUseAsianSweepTrap     = true;                  // Pilar 3: Perangkap Asian Liquidity Sweep (Sesi London)
-input bool                InpUseTripleScreen       = true;                  // Pilar 4: Triple-Screen Fractal (M15 Bias -> M1 Trigger)
+input bool                InpUseTripleScreen       = true;                  // Pilar 4: Triple-Screen M15 Confluence Filter
 input bool                InpUseDefendTheBag       = true;                  // Pilar 5: Defend-The-Bag (Kunci Cuan Harian >= 8%)
 input double              InpDefendBagProfitPct    = 8.0;                   // Ambang Defend-The-Bag (% Wallet untuk Pangkas 50% Lot)
 
@@ -98,7 +98,7 @@ input double              InpDailyTargetPercent    = 15.0;                  // T
 input double              InpDailyMaxLossPercent   = 7.0;                   // Batas Rem Rugi Harian (7% dari Total Wallet)
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "5.00";
+string                    g_current_version        = "5.10";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_sl_points              = 120;
@@ -259,14 +259,14 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
             double target_usd = cur_bal * (g_daily_target_pct / 100.0);
             double loss_usd = cur_bal * (g_daily_max_loss_pct / 100.0);
 
-            string update_fields = "{\"name\": \"⚡ Apex Quant Engine\", \"value\": \"`v" + g_current_version + " (Apex Edition)`\", \"inline\": true}," +
+            string update_fields = "{\"name\": \"⚡ Apex Quant Engine\", \"value\": \"`v" + g_current_version + " (Active Sniper)`\", \"inline\": true}," +
                                    "{\"name\": \"🎯 Target Harian (15%)\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (" + DoubleToString(g_daily_target_pct, 0) + "% Wallet)`\", \"inline\": true}," +
                                    "{\"name\": \"🛡️ Max Loss Harian (7%)\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (" + DoubleToString(g_daily_max_loss_pct, 0) + "% Wallet)`\", \"inline\": true}," +
-                                   "{\"name\": \"🏛️ 5 Pilar Kuantitatif\", \"value\": \"`Regime Switch + VWAP + Asian Sweep + Defend Bag`\", \"inline\": true}," +
+                                   "{\"name\": \"⚡ Micro-Pullback Sniper\", \"value\": \"`Aktif M1 EMA5/13 Dip + Stoch Hook`\", \"inline\": true}," +
                                    "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot`\", \"inline\": true}";
             
             SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (APEX v" + g_current_version + ")!", 
-                             "5 Pilar Kuantitatif Kelas Dunia (VWAP, Asian Sweep, Regime Switch, Defend-The-Bag) resmi aktif!", 
+                             "Pemicu responsif Micro-Pullback Sniper + Session VWAP resmi aktif di seluruh ekosistem!", 
                              0x9B59B6, update_fields, false);
          }
       }
@@ -279,8 +279,8 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
 void CalculateSessionVWAP(double &vwap, double &upper_band, double &lower_band)
 {
    vwap = m_symbol.Bid();
-   upper_band = vwap + 150 * m_symbol.Point();
-   lower_band = vwap - 150 * m_symbol.Point();
+   upper_band = vwap + 120 * m_symbol.Point();
+   lower_band = vwap - 120 * m_symbol.Point();
 
    datetime start_of_day = StringToTime(TimeToString(TimeCurrent(), TIME_DATE) + " 00:00");
    MqlRates rates[];
@@ -302,7 +302,6 @@ void CalculateSessionVWAP(double &vwap, double &upper_band, double &lower_band)
    {
       vwap = cum_vol_price / cum_volume;
 
-      // Hitung Variance / Standar Deviasi
       double sum_sq_diff = 0.0;
       for(int i = 0; i < copied; i++)
       {
@@ -310,13 +309,13 @@ void CalculateSessionVWAP(double &vwap, double &upper_band, double &lower_band)
          sum_sq_diff += MathPow(tp - vwap, 2.0);
       }
       double std_dev = MathSqrt(sum_sq_diff / copied);
-      upper_band = vwap + 1.5 * std_dev;
-      lower_band = vwap - 1.5 * std_dev;
+      upper_band = vwap + 1.2 * std_dev;
+      lower_band = vwap - 1.2 * std_dev;
    }
 }
 
 //+------------------------------------------------------------------+
-//| TRACKING ASIAN RANGE (07:00 - 13:00 WIB / 00:00 - 06:00 UTC)     |
+//| TRACKING ASIAN RANGE (07:00 - 13:00 WIB)                         |
 //+------------------------------------------------------------------+
 void UpdateAsianRange()
 {
@@ -331,7 +330,6 @@ void UpdateAsianRange()
    MqlDateTime dt;
    TimeToStruct(TimeCurrent(), dt);
 
-   // Selama sesi Asia (00:00 - 06:00 UTC / 07:00 - 13:00 WIB), rekam High dan Low
    if(dt.hour < 6)
    {
       datetime asian_start = today_date;
@@ -361,8 +359,8 @@ ENUM_MARKET_REGIME DetectMarketRegime(double bb_up, double bb_low, double ema5, 
    double point = m_symbol.Point();
    double bb_width_pts = (bb_up - bb_low) / point;
 
-   if(bb_width_pts < 120) return REGIME_SIDEWAYS_RANGE; // Volatilitas sempit -> Range Mode
-   if(MathAbs(ema5 - ema13) / point > 35) return REGIME_STRONG_TREND; // Slope tajam -> Trend Mode
+   if(bb_width_pts < 100) return REGIME_SIDEWAYS_RANGE;
+   if(MathAbs(ema5 - ema13) / point > 20) return REGIME_STRONG_TREND;
    return REGIME_SIDEWAYS_RANGE;
 }
 
@@ -418,14 +416,13 @@ double CalculateLotSizeWithDefendTheBag(double sl_points)
       }
    }
 
-   // Defend-The-Bag: Jika profit hari ini sudah >= 8% wallet, pangkas lot 50%
    if(InpUseDefendTheBag)
    {
       double daily_pl = GetDailyProfitLoss();
       double defend_threshold_usd = balance * (InpDefendBagProfitPct / 100.0);
       if(daily_pl >= defend_threshold_usd)
       {
-         lot = lot * 0.5; // Kunci profit, main defensif!
+         lot = lot * 0.5;
       }
    }
 
@@ -538,9 +535,9 @@ void NotifyAITrade(string type, double price, double lot_used, double sl, double
 
    string fields = "{\"name\": \"🏷️ Tipe Order\", \"value\": \"" + emoji + " **" + type + " (Layer " + IntegerToString(current_layers) + "/" + IntegerToString(g_max_open_pos) + ")**\", \"inline\": true}," +
                    "{\"name\": \"⚡ Pemicu Apex\", \"value\": \"`" + trigger_source + "`\", \"inline\": true}," +
-                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Apex Quant)`\", \"inline\": true}," +
+                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Apex Active)`\", \"inline\": true}," +
                    "{\"name\": \"📊 Simbol & Lot\", \"value\": \"`" + _Symbol + "` (**" + DoubleToString(lot_used, 2) + " Lot**)\", \"inline\": true}," +
-                   "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(price, _Digits) + "` (Institutional Entry)\", \"inline\": true}," +
+                   "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(price, _Digits) + "` (Sniper Entry)\", \"inline\": true}," +
                    "{\"name\": \"🛡️ Dynamic SL\", \"value\": \"`" + DoubleToString(sl, _Digits) + "` (-" + IntegerToString(sl_pts / 10) + " Pips)\", \"inline\": true}," +
                    "{\"name\": \"🎯 Dynamic TP\", \"value\": \"`" + DoubleToString(tp, _Digits) + "` (+" + IntegerToString(tp_pts / 10) + " Pips)\", \"inline\": true}," +
                    "{\"name\": \"🛡️ Spread Saat Entry\", \"value\": \"`" + IntegerToString(spread_used) + " Points` (Aman)\", \"inline\": true}," +
@@ -548,7 +545,7 @@ void NotifyAITrade(string type, double price, double lot_used, double sl, double
                    "{\"name\": \"🎫 Ticket ID\", \"value\": \"`#" + IntegerToString(ticket) + "`\", \"inline\": true}";
 
    SendDiscordEmbed("⚡ APEX QUANT FAST SNIPER (" + type + " - Layer " + IntegerToString(current_layers) + ")", 
-                    "Eksekusi Instan M1: Terkonfirmasi 5 Pilar Institusional + Perisai Aman.", 
+                    "Eksekusi Instan M1: Terkonfirmasi Setup Sniper Aktif + Dynamic ATR.", 
                     embed_color, 
                     fields, false);
 }
@@ -593,7 +590,7 @@ void NotifyCloseTrade(string type, double close_price, double profit, ulong deal
    double daily_total_pl = GetDailyProfitLoss();
 
    string fields = "{\"name\": \"📊 Hasil Transaksi\", \"value\": \"" + result_emoji + "\", \"inline\": true}," +
-                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Apex Quant)`\", \"inline\": true}," +
+                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Apex Active)`\", \"inline\": true}," +
                    "{\"name\": \"💵 Realized PnL\", \"value\": \"**" + pnl_sign + DoubleToString(abs_profit, 2) + "**\", \"inline\": true}," +
                    "{\"name\": \"🏦 Saldo Akun Terkini\", \"value\": \"**`$" + DoubleToString(current_balance, 2) + "`**\", \"inline\": true}," +
                    "{\"name\": \"🏷️ Posisi Ditutup\", \"value\": \"`" + type + " " + _Symbol + " (" + DoubleToString(volume, 2) + " Lot)`\", \"inline\": true}," +
@@ -751,19 +748,18 @@ int OnInit()
    FetchAndApplyCloudConfig(true);
    m_last_cloud_sync_time = TimeCurrent();
 
-   // Inisialisasi Indikator M1 Ultra-Fast, M15 Macro & Dynamic ATR
-   handle_ema5_m1   = iMA(_Symbol, PERIOD_M1, InpEMA_Fast_M1, 0, MODE_EMA, PRICE_CLOSE);
-   handle_ema13_m1  = iMA(_Symbol, PERIOD_M1, InpEMA_Slow_M1, 0, MODE_EMA, PRICE_CLOSE);
-   handle_stoch_m1  = iStochastic(_Symbol, PERIOD_M1, InpStoch_K, InpStoch_D, InpStoch_Slowing, MODE_SMA, STO_LOWHIGH);
-   handle_bb_m1     = iBands(_Symbol, PERIOD_M1, InpBB_Period_M1, 0, InpBB_Dev_M1, PRICE_CLOSE);
-   handle_atr_m1    = iATR(_Symbol, PERIOD_M1, InpATR_Period);
+   handle_ema5_m1   = iMA(_Symbol, PERIOD_M1, 5, 0, MODE_EMA, PRICE_CLOSE);
+   handle_ema13_m1  = iMA(_Symbol, PERIOD_M1, 13, 0, MODE_EMA, PRICE_CLOSE);
+   handle_stoch_m1  = iStochastic(_Symbol, PERIOD_M1, 5, 3, 3, MODE_SMA, STO_LOWHIGH);
+   handle_bb_m1     = iBands(_Symbol, PERIOD_M1, 20, 0, 2.0, PRICE_CLOSE);
+   handle_atr_m1    = iATR(_Symbol, PERIOD_M1, 14);
    handle_ema50_m15 = iMA(_Symbol, PERIOD_M15, 50, 0, MODE_EMA, PRICE_CLOSE);
 
    if(handle_ema5_m1 == INVALID_HANDLE || handle_ema13_m1 == INVALID_HANDLE ||
       handle_stoch_m1 == INVALID_HANDLE || handle_bb_m1 == INVALID_HANDLE ||
       handle_atr_m1 == INVALID_HANDLE || handle_ema50_m15 == INVALID_HANDLE)
    {
-      Print("[ERROR] Gagal inisialisasi indikator Apex M1!");
+      Print("[ERROR] Gagal inisialisasi indikator Apex Active M1!");
       return INIT_FAILED;
    }
 
@@ -772,15 +768,15 @@ int OnInit()
    double loss_usd = current_bal * (g_daily_max_loss_pct / 100.0);
    double current_lot = CalculateLotSizeWithDefendTheBag(g_sl_points);
 
-   string startup_fields = "{\"name\": \"⚡ Apex Engine\", \"value\": \"`v" + g_current_version + " (Apex Edition)`\", \"inline\": true}," +
+   string startup_fields = "{\"name\": \"⚡ Apex Active Engine\", \"value\": \"`v" + g_current_version + " (Micro-Pullback Sniper)`\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target Cuan Harian\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (15% Wallet)`\", \"inline\": true}," +
                            "{\"name\": \"🛡️ Max Loss Harian\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (7% Wallet)`\", \"inline\": true}," +
-                           "{\"name\": \"🏛️ 5 Pilar Kuantitatif\", \"value\": \"`VWAP + Asian Sweep + Regime + Defend Bag`\", \"inline\": true}," +
+                           "{\"name\": \"⚡ Eksekusi Responsif\", \"value\": \"`Micro-Pullback + Stoch Hook + VWAP`\", \"inline\": true}," +
                            "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Lot: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}," +
                            "{\"name\": \"🛡️ Red News Shield\", \"value\": \"`Auto-Pause CPI/NFP/FOMC (15 Menit)`\", \"inline\": true}";
 
-   SendDiscordEmbed("⚡ XAUUSD Apex Quant Scalper Aktif (v5.00)! 🚀", 
-                    "Seluruh 5 Pilar Kuantitatif & Perisai Institusional Aktif: Session VWAP, Asian Sweep, Regime Switch, Defend-The-Bag!", 
+   SendDiscordEmbed("⚡ XAUUSD Apex Active Scalper Aktif (v5.10)! 🚀", 
+                    "Eksekusi Cepat Micro-Pullback Sniper + Session VWAP + Asian Sweep Trap siap berburu sinyal!", 
                     0x3498DB, startup_fields, false);
 
    return INIT_SUCCEEDED;
@@ -844,7 +840,7 @@ void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_
    string defend_status = (daily_pl >= cur_bal * (InpDefendBagProfitPct / 100.0)) ? "AKTIF 🔥 (Lot Dipangkas 50%)" : "STANDBY ⚪";
 
    string info = "=========================================================\n";
-   info += "       ⚡ XAUUSD APEX QUANTITATIVE SCALPER v" + g_current_version + "    \n";
+   info += "       ⚡ XAUUSD APEX ACTIVE SCALPER v" + g_current_version + "    \n";
    info += "=========================================================\n";
    info += StringFormat(" 💰 Balance / Equity : $%.2f / $%.2f\n", m_account.Balance(), m_account.Equity());
    info += StringFormat(" 📈 Auto-Lot Mode    : %.2f Lot ($%.0f = %.2f Lot)\n", lot, g_balance_step, g_lot_step);
@@ -852,11 +848,11 @@ void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_
    info += StringFormat(" 🔒 Direction Lock   : %s\n", dir_status);
    info += StringFormat(" 💼 Defend-The-Bag   : %s\n", defend_status);
    info += "---------------------------------------------------------\n";
-   info += " [5 PILAR KUANTITATIF & REZIM PASAR]\n";
+   info += " [RADAR HUNTING M1 REAL-TIME]\n";
    info += StringFormat("  🏛️ Rezim Pasar     : %s\n", regime_label);
+   info += StringFormat("  📈 M1 Momentum     : EMA5 (%.2f) vs EMA13 (%.2f) -> %s\n", ema5, ema13, (ema5 > ema13) ? "BULLISH 🟢" : "BEARISH 🔴");
+   info += StringFormat("  ⚡ Fast Stoch (5,3): K=%.1f | D=%.1f (%s)\n", stoch_k, stoch_d, (stoch_k < 35) ? "OVERSOLD 🟢" : (stoch_k > 65) ? "OVERBOUGHT 🔴" : "NEUTRAL ⚪");
    info += StringFormat("  📊 Session VWAP    : %.2f (Diskon: <%.2f | Premium: >%.2f)\n", vwap, vwap_low, vwap_up);
-   info += StringFormat("  🌏 Asian Range     : Low: %.2f | High: %.2f\n", g_asian_low, g_asian_high);
-   info += StringFormat("  ⚡ Fast Stoch (5,3): K=%.1f | D=%.1f\n", stoch_k, stoch_d);
    info += StringFormat("  🛡️ Dynamic ATR SL/TP: SL -%d Pips | TP +%d Pips\n", dyn_sl / 10, dyn_tp / 10);
    info += StringFormat("  🎯 Status Radar    : %s\n", signal_status);
    info += "---------------------------------------------------------\n";
@@ -864,7 +860,7 @@ void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_
    info += StringFormat(" 🏆 Profit Hari Ini  : %s$%.2f\n", (daily_pl >= 0) ? "+" : "-", MathAbs(daily_pl));
    info += StringFormat(" 🎯 Target 15%% Cuan  : +$%.2f (Kunci Profit)\n", dynamic_target_usd);
    info += StringFormat(" 🛡️ Max Loss 7%% Rugi : -$%.2f (Rem Pengaman)\n", dynamic_max_loss_usd);
-   info += " 📡 Discord Webhook  : TERHUBUNG (Apex Quant Alerts) ✅\n";
+   info += " 📡 Discord Webhook  : TERHUBUNG (Apex Active Alerts) ✅\n";
    info += "=========================================================\n";
 
    Comment(info);
@@ -1047,7 +1043,7 @@ void ExecuteApexScalp(ENUM_ORDER_TYPE order_type, string trigger_source, int cur
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (APEX QUANTITATIVE ENGINE)                     |
+//| ON TICK EXECUTION (RESPONSIVE APEX QUANT ENGINE)                 |
 //+------------------------------------------------------------------+
 void OnTick()
 {
@@ -1060,13 +1056,13 @@ void OnTick()
       m_last_cloud_sync_time = TimeCurrent();
    }
 
-   // 2. Perisai Jumat Malam (Auto-Close seluruh posisi sebelum akhir pekan)
+   // 2. Perisai Jumat Malam
    if(IsFridayWeekendCleanTime())
    {
       CloseAllPositionsForWeekend();
    }
 
-   // 3. Eksekusi Proteksi Posisi (Multi-Stage TP, Fast BE, Trailing Stop)
+   // 3. Eksekusi Proteksi Posisi
    ManageOpenPositions();
 
    // 4. Double-Check Deteksi Posisi Tertutup
@@ -1110,11 +1106,12 @@ void OnTick()
    double stoch_k      = stoch_k_buf[0];
    double stoch_d      = stoch_d_buf[0];
    double prev_stoch_k = stoch_k_buf[1];
+   double prev_stoch_d = stoch_d_buf[1];
    double bb_up        = bb_up_buf[0];
    double bb_low       = bb_low_buf[0];
    double macro_ema50  = ema50_m15_buf[0];
 
-   // 9. Analisis Anatomi Bar 1 yang Resmi Tertutup (Confirmed Wick Rejection)
+   // 9. Analisis Anatomi Bar 1 yang Resmi Tertutup (Wick Rejection >= 35%)
    double bar1_open  = rates_m1[1].open;
    double bar1_high  = rates_m1[1].high;
    double bar1_low   = rates_m1[1].low;
@@ -1124,12 +1121,12 @@ void OnTick()
    double lower_wick = MathMin(bar1_open, bar1_close) - bar1_low;
    double upper_wick = bar1_high - MathMax(bar1_open, bar1_close);
 
-   bool is_bullish_pinbar = (bar1_range > 0) && (lower_wick >= 0.45 * bar1_range) && (bar1_close > bar1_low);
-   bool is_bearish_pinbar = (bar1_range > 0) && (upper_wick >= 0.45 * bar1_range) && (bar1_close < bar1_high);
+   bool is_bullish_pinbar = (bar1_range > 0) && (lower_wick >= 0.35 * bar1_range) && (bar1_close > bar1_low);
+   bool is_bearish_pinbar = (bar1_range > 0) && (upper_wick >= 0.35 * bar1_range) && (bar1_close < bar1_high);
    bool is_bullish_engulf = (bar1_close > rates_m1[2].high) && (bar1_close > bar1_open);
    bool is_bearish_engulf = (bar1_close < rates_m1[2].low) && (bar1_close < bar1_open);
 
-   // 10. Pilar 1: Deteksi Rezim Pasar
+   // 10. Deteksi Rezim Pasar
    ENUM_MARKET_REGIME regime = DetectMarketRegime(bb_up, bb_low, ema5_curr, ema13_curr);
    string regime_str = (regime == REGIME_STRONG_TREND) ? "TRENDING MOMENTUM 🚀" : "RANGING / SIDEWAYS ⚖️";
 
@@ -1150,7 +1147,7 @@ void OnTick()
       }
    }
 
-   // 12. Pembangkit Sinyal Apex Quant (5 Pilar Konfluensi)
+   // 12. PEMBANGKIT SINYAL APEX QUANT AKTIF (MULTI-TRIGGER CONFLUENCE)
    bool buy_signal = false;
    bool sell_signal = false;
    string trigger_reason = "";
@@ -1159,16 +1156,14 @@ void OnTick()
    TimeToStruct(TimeCurrent(), dt);
    bool is_london_session = (dt.hour >= 7 && dt.hour <= 12); // 14:00 - 19:00 WIB
 
-   // --- PILAR 3: PERANGKAP ASIAN RANGE LIQUIDITY SWEEP (Sesi London) ---
+   // --- PEMICU 1: ASIAN RANGE LIQUIDITY SWEEP (Sesi London) ---
    if(InpUseAsianSweepTrap && is_london_session && g_asian_high > 0 && g_asian_low > 0)
    {
-      // BUY: Harga menyapu di bawah Asian Low lalu memantul membentuk Bullish Wick
       if(rates_m1[1].low < g_asian_low && bar1_close > g_asian_low && (is_bullish_pinbar || is_bullish_engulf))
       {
          buy_signal = true;
          trigger_reason = "Asian Low Liquidity Sweep Trap (London Reversal)";
       }
-      // SELL: Harga menyapu di atas Asian High lalu ditolak membentuk Bearish Wick
       else if(rates_m1[1].high > g_asian_high && bar1_close < g_asian_high && (is_bearish_pinbar || is_bearish_engulf))
       {
          sell_signal = true;
@@ -1176,68 +1171,63 @@ void OnTick()
       }
    }
 
-   // --- PILAR 2: INSTITUTIONAL SESSION VWAP DISKON / PREMIUM REVERSAL ---
+   // --- PEMICU 2: INSTITUTIONAL SESSION VWAP DISKON / PREMIUM REVERSAL ---
    if(!buy_signal && !sell_signal && InpUseSessionVWAP)
    {
-      // BUY di Zona Diskon Grosir (< VWAP Lower Band -1.5 SD) + Jarum Bawah + Stoch Oversold
-      if(rates_m1[0].close <= vwap_low && (is_bullish_pinbar || is_bullish_engulf) && stoch_k < 35)
+      if(rates_m1[0].close <= vwap_low && (is_bullish_pinbar || is_bullish_engulf || stoch_k < 25))
       {
          buy_signal = true;
-         trigger_reason = "Session VWAP Institutional Discount Reversal (< -1.5 SD)";
+         trigger_reason = "Session VWAP Institutional Discount (< -1.2 SD)";
       }
-      // SELL di Zona Premium Grosir (> VWAP Upper Band +1.5 SD) + Jarum Atas + Stoch Overbought
-      else if(rates_m1[0].close >= vwap_up && (is_bearish_pinbar || is_bearish_engulf) && stoch_k > 65)
+      else if(rates_m1[0].close >= vwap_up && (is_bearish_pinbar || is_bearish_engulf || stoch_k > 75))
       {
          sell_signal = true;
-         trigger_reason = "Session VWAP Institutional Premium Reversal (> +1.5 SD)";
+         trigger_reason = "Session VWAP Institutional Premium (> +1.2 SD)";
       }
    }
 
-   // --- PILAR 1: DYNAMIC REGIME ENGINE (Range vs Momentum) ---
+   // --- PEMICU 3: MICRO-PULLBACK SNIPER (Trend Continuation di EMA 5/13) ---
    if(!buy_signal && !sell_signal)
    {
-      if(regime == REGIME_SIDEWAYS_RANGE)
+      // BUY: Trend M1 Bullish (EMA5 > EMA13) + Harga koreksi menyentuh EMA13 lalu memantul
+      if(ema5_curr > ema13_curr && (rates_m1[0].low <= ema13_curr || rates_m1[1].low <= ema13_curr) && rates_m1[0].close >= ema5_curr && (stoch_k > stoch_d || is_bullish_pinbar))
       {
-         // Mode Mean-Reversion di Bollinger Band
-         if((bar1_low <= bb_low || rates_m1[0].low <= bb_low) && (is_bullish_pinbar || is_bullish_engulf) && stoch_k < 35)
+         if(!InpUseTripleScreen || rates_m1[0].close >= macro_ema50)
          {
             buy_signal = true;
-            trigger_reason = "Range Mode: Lower BB Wick Sniper Reversal";
-         }
-         else if((bar1_high >= bb_up || rates_m1[0].high >= bb_up) && (is_bearish_pinbar || is_bearish_engulf) && stoch_k > 65)
-         {
-            sell_signal = true;
-            trigger_reason = "Range Mode: Upper BB Wick Sniper Reversal";
+            trigger_reason = "M1 Micro-Pullback Dip to EMA13 (Bullish Sniper)";
          }
       }
-      else if(regime == REGIME_STRONG_TREND)
+      // SELL: Trend M1 Bearish (EMA5 < EMA13) + Harga pullback naik menyentuh EMA13 lalu ditolak
+      else if(ema5_curr < ema13_curr && (rates_m1[0].high >= ema13_curr || rates_m1[1].high >= ema13_curr) && rates_m1[0].close <= ema5_curr && (stoch_k < stoch_d || is_bearish_pinbar))
       {
-         // Mode Momentum Impulse Breakout
-         double highest_3bars = MathMax(rates_m1[1].high, MathMax(rates_m1[2].high, rates_m1[3].high));
-         double lowest_3bars  = MathMin(rates_m1[1].low, MathMin(rates_m1[2].low, rates_m1[3].low));
+         if(!InpUseTripleScreen || rates_m1[0].close <= macro_ema50)
+         {
+            sell_signal = true;
+            trigger_reason = "M1 Micro-Pullback Rally to EMA13 (Bearish Sniper)";
+         }
+      }
+   }
 
-         if(ema5_curr > ema13_curr && ema5_buf[1] <= ema13_buf[1] && rates_m1[0].close >= highest_3bars && stoch_k > stoch_d)
-         {
-            // Pilar 4: Triple Screen M15 Confluence Filter (Wajib di atas EMA50 M15)
-            if(!InpUseTripleScreen || rates_m1[0].close >= macro_ema50)
-            {
-               buy_signal = true;
-               trigger_reason = "Trend Mode: M1 EMA 5/13 Golden Cross + M15 Tide";
-            }
-         }
-         else if(ema5_curr < ema13_curr && ema5_buf[1] >= ema13_buf[1] && rates_m1[0].close <= lowest_3bars && stoch_k < stoch_d)
-         {
-            if(!InpUseTripleScreen || rates_m1[0].close <= macro_ema50)
-            {
-               sell_signal = true;
-               trigger_reason = "Trend Mode: M1 EMA 5/13 Death Cross + M15 Tide";
-            }
-         }
+   // --- PEMICU 4: FAST STOCHASTIC HOOK & BB MEAN REVERSION ---
+   if(!buy_signal && !sell_signal)
+   {
+      // BUY: Fast Stoch Hook ke atas dari area Oversold (< 30) + Pantulan Lower BB
+      if((prev_stoch_k <= 30 && stoch_k > prev_stoch_k && stoch_k > stoch_d) && (bar1_low <= bb_low || rates_m1[0].low <= bb_low || is_bullish_pinbar))
+      {
+         buy_signal = true;
+         trigger_reason = "Fast Stoch Hook Reversal from Oversold (< 30)";
+      }
+      // SELL: Fast Stoch Hook ke bawah dari area Overbought (> 70) + Pantulan Upper BB
+      else if((prev_stoch_k >= 70 && stoch_k < prev_stoch_k && stoch_k < stoch_d) && (bar1_high >= bb_up || rates_m1[0].high >= bb_up || is_bearish_pinbar))
+      {
+         sell_signal = true;
+         trigger_reason = "Fast Stoch Hook Reversal from Overbought (> 70)";
       }
    }
 
    // 13. Update Dashboard On-Chart
-   string dashboard_status = "STANDBY HUNTING APEX...";
+   string dashboard_status = "STANDBY HUNTING M1...";
    if(IsHighImpactNewsTime()) dashboard_status = "🚨 RED NEWS PAUSE (CPI/NFP/FOMC)";
    else if(IsFridayWeekendCleanTime()) dashboard_status = "📅 FRIDAY WEEKEND PAUSE (21:00+)";
    else if(IsRolloverTime()) dashboard_status = "⏸️ ROLLOVER TIME PAUSE (23:50-01:10)";
