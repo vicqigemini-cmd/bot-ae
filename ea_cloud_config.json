@@ -1,7 +1,7 @@
 {
-  "version": "23.00",
+  "version": "24.00",
   "sync_interval_min": 5,
-  "engine_name": "Apex Sovereign Transcendence (v23.00 Flawless Zero-Bottleneck Edition)",
+  "engine_name": "Apex Sovereign Omniscience (v24.00 Full Lifecycle Webhook Edition)",
   "emergency_close_all": false,
   "enable_auto_self_update": true,
   "enable_multi_pair_mode": true,
@@ -56,5 +56,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v23.00 Apex Sovereign Transcendence Edition: Risk-Free Portfolio Compounding (True-BE positions count as $0.00 risk, immediately freeing 2% cap for new setups), Event-Driven Zero-Lag PnL & Closed-Bar Caching, Broker Retcode Diagnostics, Weekend Swing Gap Armor, In-EA Autonomous Self-Updater."
+  "status_message": "OTA v24.00 Apex Sovereign Omniscience Edition: Full Lifecycle Webhooks (Startup/Update Alert, Open Trade Entry Card, 50% Partial Scaler Lock Embed, Trade Closed PnL Realized Embed on TP/SL), Event-Driven Zero-Lag PnL & Closed-Bar Caching, Risk-Free Portfolio Compounding, In-EA Autonomous Self-Updater."
 }
