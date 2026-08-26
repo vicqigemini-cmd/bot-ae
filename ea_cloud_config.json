@@ -1,8 +1,9 @@
 {
-  "version": "11.00",
+  "version": "11.10",
   "sync_interval_min": 5,
   "engine_name": "XAUUSD Apex Sovereign Citadel & Golden Fibonacci Master (Hybrid Dual-Engine)",
   "emergency_close_all": false,
+  "enable_auto_self_update": true,
   "use_golden_fib_pocket": true,
   "use_micro_fib_scalp": true,
   "enable_mobile_push": true,
@@ -56,5 +57,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v11.00 Apex Sovereign Citadel & Golden Fibonacci Edition: Golden Pocket 50.0%-61.8% Retracement & 161.8% Extension Target, Global Cloud Nuclear Kill-Switch, Native MT5 Mobile Push Notification, 24/7 VPS Garbage Collector & Ping Watchdog, Multi-Tier Swing Lock (+120p -> +50p Lock), Slippage Radar, Weekend Digest, Manual Guard, Unique Prominent Fleet ID."
+  "status_message": "OTA v11.10 Apex Sovereign Citadel: Embedded Autonomous Self-Updater (Zero PowerShell), Golden Pocket 50.0%-61.8% Retracement & 161.8% Extension, Global Cloud Nuclear Kill-Switch, Native MT5 Mobile Push, 24/7 VPS Garbage Collector, Multi-Tier Swing Lock, Slippage Radar, Weekend Digest, Manual Guard, Unique Prominent Fleet ID."
 }
