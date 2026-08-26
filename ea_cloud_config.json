@@ -1,5 +1,6 @@
 {
-  "version": "2.20",
+  "version": "2.25",
+  "sync_interval_min": 5,
   "auto_lot": true,
   "balance_per_step": 100.0,
   "lot_per_step": 0.01,
@@ -15,5 +16,5 @@
   "rsi_period": 14,
   "rsi_overbought": 75.0,
   "rsi_oversold": 25.0,
-  "status_message": "OTA Cloud Engine Aktif - Scalper Multi-Timeframe M15/M1 dengan Auto-Lot $100 = 0.01 Lot."
+  "status_message": "OTA Cloud Engine Aktif - Sinkronisasi Cepat Setiap 5 Menit."
 }
