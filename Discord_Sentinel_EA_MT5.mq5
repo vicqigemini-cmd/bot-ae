@@ -1,15 +1,17 @@
 //+------------------------------------------------------------------+
 //|                                     Discord_Sentinel_EA_MT5.mq5  |
-//|    Multi-Timeframe Scalper EA • OTA Cloud Auto-Sync Edition      |
+//| Multi-Timeframe Scalper EA • Bulletproof Edition (v2.30)         |
+//| (Max Spread Guard • Session Filter • Daily Target Guard • OTA)   |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "2.20"
+#property version   "2.30"
 #property strict
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
+#include <Trade\HistoryOrderInfo.mqh>
 
 #define CLOUD_CONFIG_URL "https://raw.githubusercontent.com/vicqigemini-cmd/bot-ae/main/ea_cloud_config.json"
 
@@ -24,9 +26,22 @@ input string   InpBotName           = "EA Scalper Cloud Sentinel MT5";          
 
 input group "=== OTA CLOUD AUTO-SYNC (1x PASANG = AUTO UPDATE) ==="
 input bool     InpEnableCloudSync   = true;      // Aktifkan Sinkronisasi Parameter Otomatis dari GitHub
-input int      InpSyncIntervalMin   = 5;         // Interval Cek Update Cloud (Menit) - Setiap 5 Menit
+input int      InpSyncIntervalMin   = 5;         // Interval Cek Update Cloud (Menit)
 
-input group "=== DEFAULT SETTINGS (OTOMATIS TERSINKRON DARI CLOUD) ==="
+input group "=== PROTEKSI SPREAD & NEWS GUARD ==="
+input int      InpMaxSpreadPoints   = 35;        // Maksimum Spread Diizinkan (Points) - Tolak Entry saat News/Rollover
+
+input group "=== FILTER SESI TRADING (JAM LIKUIDITAS TINGGI) ==="
+input bool     InpUseTimeFilter     = true;      // Batasi Trading Hanya Jam Aktif
+input int      InpStartHour         = 8;         // Jam Mulai Trading (Server Time)
+input int      InpEndHour           = 22;        // Jam Selesai Trading (Server Time)
+
+input group "=== DAILY PROFIT TARGET & MAX LOSS GUARD ==="
+input bool     InpUseDailyGuard     = true;      // Aktifkan Pengaman Target Harian
+input double   InpDailyTargetProfit = 50.0;      // Kunci Profit Harian ($) - Berhenti jika tercapai
+input double   InpDailyMaxLoss      = 25.0;      // Batas Rem Rugi Harian ($) - Berhenti jika tersentuh
+
+input group "=== AUTO-LOT & MONEY MANAGEMENT ==="
 input bool     InpUseAutoLot        = true;      // Gunakan Auto-Lot Berdasarkan Saldo
 input double   InpBalancePerStep    = 100.0;     // Kelipatan Saldo ($100)
 input double   InpLotPerStep        = 0.01;      // Lot per Kelipatan Saldo (0.01 Lot per $100)
@@ -51,7 +66,7 @@ input int      InpTrailingStartPips = 10;        // Trailing Dimulai Setelah Pro
 input int      InpTrailingStepPips  = 5;         // Jarak Trailing Step (Pips)
 
 //--- Dynamic Runtime Cloud Variables
-string         g_current_version    = "2.20";
+string         g_current_version    = "2.30";
 bool           g_auto_lot           = true;
 double         g_balance_step       = 100.0;
 double         g_lot_step           = 0.01;
@@ -60,12 +75,13 @@ int            g_tp_pips            = 30;
 bool           g_use_trailing       = true;
 int            g_trailing_start     = 10;
 int            g_trailing_step      = 5;
-int            g_m15_fast_ema       = 20;
-int            g_m15_slow_ema       = 50;
-int            g_m1_fast_ema        = 9;
-int            g_m1_slow_ema        = 21;
-double         g_rsi_ob             = 75.0;
-double         g_rsi_os             = 25.0;
+int            g_max_spread         = 35;
+bool           g_use_time_filter    = true;
+int            g_start_hour         = 8;
+int            g_end_hour           = 22;
+bool           g_use_daily_guard    = true;
+double         g_daily_target_usd   = 50.0;
+double         g_daily_max_loss_usd = 25.0;
 
 //--- Global Handles & Timers
 CTrade         m_trade;
@@ -77,9 +93,10 @@ int            m_h_m1_slow_ema;
 int            m_h_m1_rsi;
 datetime       m_last_bar_time;
 datetime       m_last_cloud_sync_time;
+datetime       m_last_guard_notif_date;
 
 //+------------------------------------------------------------------+
-//| HELPER PARSER JSON SEDERHANA & CEPAT                             |
+//| HELPER PARSER JSON                                               |
 //+------------------------------------------------------------------+
 string ExtractJsonString(string json, string key)
 {
@@ -154,15 +171,7 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
    ArrayResize(post_data, ArraySize(post_data) - 1);
 
    ResetLastError();
-   int res = WebRequest("POST", InpDiscordWebhookURL, headers, 5000, post_data, result_data, result_headers);
-   if(res == -1)
-   {
-      int err = GetLastError();
-      if(err == 4060)
-      {
-         Print("⚠️ PERHATIAN: Tambahkan https://discord.com dan https://raw.githubusercontent.com di Tools -> Options -> Expert Advisors -> WebRequest");
-      }
-   }
+   WebRequest("POST", InpDiscordWebhookURL, headers, 5000, post_data, result_data, result_headers);
 }
 
 //+------------------------------------------------------------------+
@@ -187,25 +196,28 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
       if(cloud_version != "")
       {
          bool is_new_version = (cloud_version != g_current_version);
-         g_current_version  = cloud_version;
-         g_auto_lot         = ExtractJsonBool(json, "auto_lot", InpUseAutoLot);
-         g_balance_step     = ExtractJsonNumber(json, "balance_per_step", InpBalancePerStep);
-         g_lot_step         = ExtractJsonNumber(json, "lot_per_step", InpLotPerStep);
-         g_sl_pips          = (int)ExtractJsonNumber(json, "stop_loss_pips", InpStopLossPips);
-         g_tp_pips          = (int)ExtractJsonNumber(json, "take_profit_pips", InpTakeProfitPips);
-         g_use_trailing     = ExtractJsonBool(json, "use_trailing_stop", InpUseTrailingStop);
-         g_trailing_start   = (int)ExtractJsonNumber(json, "trailing_start_pips", InpTrailingStartPips);
-         g_trailing_step    = (int)ExtractJsonNumber(json, "trailing_step_pips", InpTrailingStepPips);
-         g_rsi_ob           = ExtractJsonNumber(json, "rsi_overbought", InpRSIOverbought);
-         g_rsi_os           = ExtractJsonNumber(json, "rsi_oversold", InpRSIOversold);
-
-         Print("✅ OTA Cloud Config Berhasil Disinkronkan! Versi: ", g_current_version);
+         g_current_version    = cloud_version;
+         g_auto_lot           = ExtractJsonBool(json, "auto_lot", InpUseAutoLot);
+         g_balance_step       = ExtractJsonNumber(json, "balance_per_step", InpBalancePerStep);
+         g_lot_step           = ExtractJsonNumber(json, "lot_per_step", InpLotPerStep);
+         g_sl_pips            = (int)ExtractJsonNumber(json, "stop_loss_pips", InpStopLossPips);
+         g_tp_pips            = (int)ExtractJsonNumber(json, "take_profit_pips", InpTakeProfitPips);
+         g_use_trailing       = ExtractJsonBool(json, "use_trailing_stop", InpUseTrailingStop);
+         g_trailing_start     = (int)ExtractJsonNumber(json, "trailing_start_pips", InpTrailingStartPips);
+         g_trailing_step      = (int)ExtractJsonNumber(json, "trailing_step_pips", InpTrailingStepPips);
+         g_max_spread         = (int)ExtractJsonNumber(json, "max_spread_points", InpMaxSpreadPoints);
+         g_use_time_filter    = ExtractJsonBool(json, "use_time_filter", InpUseTimeFilter);
+         g_start_hour         = (int)ExtractJsonNumber(json, "start_hour_server", InpStartHour);
+         g_end_hour           = (int)ExtractJsonNumber(json, "end_hour_server", InpEndHour);
+         g_use_daily_guard    = ExtractJsonBool(json, "use_daily_guard", InpUseDailyGuard);
+         g_daily_target_usd   = ExtractJsonNumber(json, "daily_target_profit_usd", InpDailyTargetProfit);
+         g_daily_max_loss_usd = ExtractJsonNumber(json, "daily_max_loss_usd", InpDailyMaxLoss);
 
          if(is_new_version && !is_initial)
          {
             string update_fields = "{\"name\": \"🚀 Versi Terbaru\", \"value\": \"`v" + g_current_version + " (Cloud Synchronized)`\", \"inline\": true}," +
-                                   "{\"name\": \"🎯 Target Baru\", \"value\": \"`SL: " + IntegerToString(g_sl_pips) + " Pips | TP: " + IntegerToString(g_tp_pips) + " Pips`\", \"inline\": true}," +
-                                   "{\"name\": \"💰 Auto-Lot Status\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot`\", \"inline\": true}";
+                                   "{\"name\": \"🛡️ Max Spread Guard\", \"value\": \"`" + IntegerToString(g_max_spread) + " Points`\", \"inline\": true}," +
+                                   "{\"name\": \"🎯 Target Baru\", \"value\": \"`SL: " + IntegerToString(g_sl_pips) + " Pips | TP: " + IntegerToString(g_tp_pips) + " Pips`\", \"inline\": true}";
             
             SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN!", 
                              "EA di MetaTrader kamu berhasil menyinkronkan strategi & parameter terbaru secara otomatis langsung dari GitHub tanpa perlu re-install!", 
@@ -216,7 +228,31 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
 }
 
 //+------------------------------------------------------------------+
-//| FUNGSI KALKULASI AUTO-LOT ($100 = 0.01 LOT)                      |
+//| HITUNG PROFIT / LOSS HARIAN (DAILY GUARD)                        |
+//+------------------------------------------------------------------+
+double GetDailyProfitLoss()
+{
+   datetime start_of_day = StringToTime(TimeToString(TimeCurrent(), TIME_DATE) + " 00:00");
+   HistorySelect(start_of_day, TimeCurrent());
+   
+   double total_profit = 0.0;
+   int deals = HistoryDealsTotal();
+   for(int i = 0; i < deals; i++)
+   {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(ticket > 0)
+      {
+         if(HistoryDealGetInteger(ticket, DEAL_MAGIC) == InpMagicNumber)
+         {
+            total_profit += HistoryDealGetDouble(ticket, DEAL_PROFIT) + HistoryDealGetDouble(ticket, DEAL_SWAP) + HistoryDealGetDouble(ticket, DEAL_COMMISSION);
+         }
+      }
+   }
+   return total_profit;
+}
+
+//+------------------------------------------------------------------+
+//| KALKULASI AUTO-LOT ($100 = 0.01 LOT)                             |
 //+------------------------------------------------------------------+
 double CalculateLotSize()
 {
@@ -245,7 +281,7 @@ double CalculateLotSize()
 //+------------------------------------------------------------------+
 //| FORMAT NOTIFIKASI ORDER DISCORD                                  |
 //+------------------------------------------------------------------+
-void NotifyOpenTrade(string type, double price, double lot_used, double sl, double tp, ulong ticket, string bias_text)
+void NotifyOpenTrade(string type, double price, double lot_used, double sl, double tp, ulong ticket, string bias_text, int spread_used)
 {
    int embed_color = (type == "BUY") ? 0x2ECC71 : 0xE74C3C;
    string emoji = (type == "BUY") ? "🟢" : "🔴";
@@ -256,11 +292,12 @@ void NotifyOpenTrade(string type, double price, double lot_used, double sl, doub
                    "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(price, _Digits) + "`\", \"inline\": true}," +
                    "{\"name\": \"🛡️ Stop Loss\", \"value\": \"`" + DoubleToString(sl, _Digits) + "` (-" + IntegerToString(g_sl_pips) + " Pips)\", \"inline\": true}," +
                    "{\"name\": \"🎯 Take Profit\", \"value\": \"`" + DoubleToString(tp, _Digits) + "` (+" + IntegerToString(g_tp_pips) + " Pips)\", \"inline\": true}," +
-                   "{\"name\": \"💰 Saldo Akun\", \"value\": \"`$" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + "` (Auto-Lot Proporsional)\", \"inline\": true}," +
+                   "{\"name\": \"🛡️ Spread Saat Entry\", \"value\": \"`" + IntegerToString(spread_used) + " Points` (Aman)\", \"inline\": true}," +
+                   "{\"name\": \"💰 Saldo Akun\", \"value\": \"`$" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + "`\", \"inline\": true}," +
                    "{\"name\": \"🎫 Ticket ID\", \"value\": \"`#" + IntegerToString(ticket) + "`\", \"inline\": true}";
 
    SendDiscordEmbed("⚡ EKSEKUSI SCALPING BARU (" + type + ")", 
-                    "Order scalping dieksekusi berdasarkan keselarasan Bias M15 dan Crossover Momentum M1 (Cloud Sync Engine).", 
+                    "Order scalping dieksekusi berdasarkan keselarasan Bias M15 & Trigger M1 dengan proteksi Max Spread Guard.", 
                     embed_color, 
                     fields, false);
 }
@@ -287,49 +324,49 @@ int OnInit()
    m_trade.SetExpertMagicNumber(InpMagicNumber);
    m_trade.SetDeviationInPoints(InpSlippage);
 
-   // Inisialisasi variabel dinamis dari input default
-   g_auto_lot       = InpUseAutoLot;
-   g_balance_step   = InpBalancePerStep;
-   g_lot_step       = InpLotPerStep;
-   g_sl_pips        = InpStopLossPips;
-   g_tp_pips        = InpTakeProfitPips;
-   g_use_trailing   = InpUseTrailingStop;
-   g_trailing_start = InpTrailingStartPips;
-   g_trailing_step  = InpTrailingStepPips;
-   g_m15_fast_ema   = InpM15FastEMA;
-   g_m15_slow_ema   = InpM15SlowEMA;
-   g_m1_fast_ema    = InpM1FastEMA;
-   g_m1_slow_ema    = InpM1SlowEMA;
-   g_rsi_ob         = InpRSIOverbought;
-   g_rsi_os         = InpRSIOversold;
+   g_auto_lot           = InpUseAutoLot;
+   g_balance_step       = InpBalancePerStep;
+   g_lot_step           = InpLotPerStep;
+   g_sl_pips            = InpStopLossPips;
+   g_tp_pips            = InpTakeProfitPips;
+   g_use_trailing       = InpUseTrailingStop;
+   g_trailing_start     = InpTrailingStartPips;
+   g_trailing_step      = InpTrailingStepPips;
+   g_max_spread         = InpMaxSpreadPoints;
+   g_use_time_filter    = InpUseTimeFilter;
+   g_start_hour         = InpStartHour;
+   g_end_hour           = InpEndHour;
+   g_use_daily_guard    = InpUseDailyGuard;
+   g_daily_target_usd   = InpDailyTargetProfit;
+   g_daily_max_loss_usd = InpDailyMaxLoss;
 
-   // Cek dan aplikasikan konfigurasi cloud dari GitHub saat startup
    FetchAndApplyCloudConfig(true);
    m_last_cloud_sync_time = TimeCurrent();
 
-   m_h_m15_fast_ema = iMA(_Symbol, PERIOD_M15, g_m15_fast_ema, 0, MODE_EMA, PRICE_CLOSE);
-   m_h_m15_slow_ema = iMA(_Symbol, PERIOD_M15, g_m15_slow_ema, 0, MODE_EMA, PRICE_CLOSE);
+   m_h_m15_fast_ema = iMA(_Symbol, PERIOD_M15, InpM15FastEMA, 0, MODE_EMA, PRICE_CLOSE);
+   m_h_m15_slow_ema = iMA(_Symbol, PERIOD_M15, InpM15SlowEMA, 0, MODE_EMA, PRICE_CLOSE);
 
-   m_h_m1_fast_ema  = iMA(_Symbol, PERIOD_M1, g_m1_fast_ema, 0, MODE_EMA, PRICE_CLOSE);
-   m_h_m1_slow_ema  = iMA(_Symbol, PERIOD_M1, g_m1_slow_ema, 0, MODE_EMA, PRICE_CLOSE);
+   m_h_m1_fast_ema  = iMA(_Symbol, PERIOD_M1, InpM1FastEMA, 0, MODE_EMA, PRICE_CLOSE);
+   m_h_m1_slow_ema  = iMA(_Symbol, PERIOD_M1, InpM1SlowEMA, 0, MODE_EMA, PRICE_CLOSE);
    m_h_m1_rsi       = iRSI(_Symbol, PERIOD_M1, InpM1RSIPeriod, PRICE_CLOSE);
 
    if(m_h_m15_fast_ema == INVALID_HANDLE || m_h_m15_slow_ema == INVALID_HANDLE ||
       m_h_m1_fast_ema == INVALID_HANDLE || m_h_m1_slow_ema == INVALID_HANDLE || m_h_m1_rsi == INVALID_HANDLE)
    {
-      Print("❌ Gagal membuat handle indikator multi-timeframe.");
+      Print("❌ Gagal membuat handle indikator.");
       return INIT_FAILED;
    }
 
    double current_lot = CalculateLotSize();
    string startup_fields = "{\"name\": \"🧭 Engine Mode\", \"value\": \"`Bias: M15 • Entry: M1`\", \"inline\": true}," +
-                           "{\"name\": \"☁️ OTA Cloud Sync\", \"value\": \"`v" + g_current_version + " (Active)`\", \"inline\": true}," +
+                           "{\"name\": \"🛡️ Max Spread Guard\", \"value\": \"`Max " + IntegerToString(g_max_spread) + " Points` (Anti-News Spread)\", \"inline\": true}," +
+                           "{\"name\": \"⏰ Jam Trading\", \"value\": \"`" + IntegerToString(g_start_hour) + ":00 - " + IntegerToString(g_end_hour) + ":00 Server`\", \"inline\": true}," +
+                           "{\"name\": \"🎯 Target Harian\", \"value\": \"`Target: +$" + DoubleToString(g_daily_target_usd, 0) + " | Max Loss: -$" + DoubleToString(g_daily_max_loss_usd, 0) + "`\", \"inline\": true}," +
                            "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Lot: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}," +
-                           "{\"name\": \"🎯 Target Scalping\", \"value\": \"`SL: " + IntegerToString(g_sl_pips) + " Pips | TP: " + IntegerToString(g_tp_pips) + " Pips`\", \"inline\": true}," +
                            "{\"name\": \"💰 Balance / Equity\", \"value\": \"`$" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + " / $" + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2) + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("🤖 EA Scalper Cloud Sentinel MT5 Aktif!", 
-                    "Expert Advisor siap bekerja 24/7 di RDP dengan sistem OTA Cloud Auto-Sync (1x Pasang = Auto Update Selamanya).", 
+   SendDiscordEmbed("🤖 EA Scalper Bulletproof MT5 Aktif!", 
+                    "Expert Advisor siap bekerja 24/7 di RDP dengan proteksi Max Spread Guard saat News dan Daily Target Guard.", 
                     0x3498DB, startup_fields, false);
 
    return INIT_SUCCEEDED;
@@ -398,7 +435,7 @@ void ApplyTrailingStop()
 //+------------------------------------------------------------------+
 void OnTick()
 {
-   // Sinkronisasi berkala dari Cloud GitHub setiap X menit
+   // Sinkronisasi berkala dari Cloud GitHub setiap 5 menit
    if(TimeCurrent() - m_last_cloud_sync_time >= InpSyncIntervalMin * 60)
    {
       FetchAndApplyCloudConfig(false);
@@ -407,11 +444,39 @@ void OnTick()
 
    ApplyTrailingStop();
 
-   // Cek Bar Baru di Timeframe M1 (Trigger Scalping)
+   // 1. Cek Proteksi Daily Profit Target & Max Loss
+   if(g_use_daily_guard)
+   {
+      double daily_pl = GetDailyProfitLoss();
+      if(daily_pl >= g_daily_target_usd)
+      {
+         // Target Profit Harian Tercapai -> Libur trading hari ini
+         return;
+      }
+      if(daily_pl <= -g_daily_max_loss_usd)
+      {
+         // Batas Rem Rugi Harian Tersentuh -> Libur trading hari ini
+         return;
+      }
+   }
+
+   // 2. Cek Filter Sesi Jam Trading
+   if(g_use_time_filter)
+   {
+      MqlDateTime dt;
+      TimeToStruct(TimeCurrent(), dt);
+      if(dt.hour < g_start_hour || dt.hour >= g_end_hour)
+      {
+         return; // Di luar jam likuiditas aktif
+      }
+   }
+
+   // 3. Cek Bar Baru di Timeframe M1
    datetime current_bar_time = iTime(_Symbol, PERIOD_M1, 0);
    if(current_bar_time == m_last_bar_time) return;
    m_last_bar_time = current_bar_time;
 
+   // Hanya 1 posisi scalping aktif per waktu
    int total_orders = 0;
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
@@ -426,10 +491,18 @@ void OnTick()
 
    if(total_orders > 0) return;
 
-   // 1. Hitung Lot Sesuai Saldo Terkini ($100 = 0.01 Lot)
+   // 4. MAX SPREAD GUARD (Tolak Entry saat Spread Melebar Karena News / Rollover)
+   int current_spread = (int)SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
+   if(current_spread > g_max_spread)
+   {
+      Print("⚠️ Entry Ditolak oleh Max Spread Guard: Spread saat ini (", current_spread, " pts) > Batas (", g_max_spread, " pts)");
+      return;
+   }
+
+   // 5. Hitung Lot Sesuai Saldo Terkini ($100 = 0.01 Lot)
    double lot_to_trade = CalculateLotSize();
 
-   // 2. Ambil Data Indikator BIAS M15
+   // 6. Ambil Data Indikator BIAS M15
    double m15_fast[], m15_slow[];
    ArraySetAsSeries(m15_fast, true);
    ArraySetAsSeries(m15_slow, true);
@@ -439,7 +512,7 @@ void OnTick()
    bool m15_bullish_bias = (m15_fast[0] > m15_slow[0]);
    bool m15_bearish_bias = (m15_fast[0] < m15_slow[0]);
 
-   // 3. Ambil Data Indikator ENTRY M1
+   // 7. Ambil Data Indikator ENTRY M1
    double m1_fast[], m1_slow[], m1_rsi[];
    ArraySetAsSeries(m1_fast, true);
    ArraySetAsSeries(m1_slow, true);
@@ -452,24 +525,24 @@ void OnTick()
    double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    double point = _Point;
 
-   // 4. SINYAL BUY SCALPING:
-   if(m15_bullish_bias && (m1_fast[1] <= m1_slow[1] && m1_fast[0] > m1_slow[0]) && (m1_rsi[0] > 45.0 && m1_rsi[0] < g_rsi_ob))
+   // 8. SINYAL BUY SCALPING:
+   if(m15_bullish_bias && (m1_fast[1] <= m1_slow[1] && m1_fast[0] > m1_slow[0]) && (m1_rsi[0] > 45.0 && m1_rsi[0] < InpRSIOverbought))
    {
       double sl = ask - (g_sl_pips * 10 * point);
       double tp = ask + (g_tp_pips * 10 * point);
       if(m_trade.Buy(lot_to_trade, _Symbol, ask, sl, tp, "Scalp BUY M1"))
       {
-         NotifyOpenTrade("BUY", ask, lot_to_trade, sl, tp, m_trade.ResultOrder(), "Bullish (EMA 20 > EMA 50)");
+         NotifyOpenTrade("BUY", ask, lot_to_trade, sl, tp, m_trade.ResultOrder(), "Bullish (EMA 20 > EMA 50)", current_spread);
       }
    }
-   // 5. SINYAL SELL SCALPING:
-   else if(m15_bearish_bias && (m1_fast[1] >= m1_slow[1] && m1_fast[0] < m1_slow[0]) && (m1_rsi[0] < 55.0 && m1_rsi[0] > g_rsi_os))
+   // 9. SINYAL SELL SCALPING:
+   else if(m15_bearish_bias && (m1_fast[1] >= m1_slow[1] && m1_fast[0] < m1_slow[0]) && (m1_rsi[0] < 55.0 && m1_rsi[0] > InpRSIOversold))
    {
       double sl = bid + (g_sl_pips * 10 * point);
       double tp = bid - (g_tp_pips * 10 * point);
       if(m_trade.Sell(lot_to_trade, _Symbol, bid, sl, tp, "Scalp SELL M1"))
       {
-         NotifyOpenTrade("SELL", bid, lot_to_trade, sl, tp, m_trade.ResultOrder(), "Bearish (EMA 20 < EMA 50)");
+         NotifyOpenTrade("SELL", bid, lot_to_trade, sl, tp, m_trade.ResultOrder(), "Bearish (EMA 20 < EMA 50)", current_spread);
       }
    }
 }
