@@ -39,8 +39,8 @@ input double   InpDailyMaxLoss      = 50.0;      // Batas Rem Rugi Harian ($)
 
 input string   s5 = "=== AUTO-LOT & MONEY MANAGEMENT ==="; // ---
 input bool     InpUseAutoLot        = true;      // Gunakan Auto-Lot Berdasarkan Saldo
-input double   InpBalancePerStep    = 100.0;     // Kelipatan Saldo ($100)
-input double   InpLotPerStep        = 0.01;      // Lot per Kelipatan Saldo (0.01 Lot per $100)
+input double   InpBalancePerStep    = 500.0;     // Kelipatan Saldo ($500)
+input double   InpLotPerStep        = 0.01;      // Lot per Kelipatan Saldo (0.01 Lot per $500)
 input double   InpFixedLotSize      = 0.01;      // Lot Tetap (Jika Auto-Lot Dimatikan)
 input int      InpStopLossPips      = 15;        // Stop Loss Scalping (Pips)
 input int      InpTakeProfitPips    = 30;        // Take Profit Scalping (Pips)
