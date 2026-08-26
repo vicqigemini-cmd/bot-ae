@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
 //|  AI-Powered Dual-Regime M1/M15 Neural Scalper for Gold (XAUUSD)  |
-//|  (Instant Tick Execution • Deep Neural Net • OTA Cloud Sync)     |
+//|  (Instant Trigger • Trade Close PnL Webhook • Wallet Guard)      |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "3.15"
-#property description "EA Scalping M1 Gold (XAUUSD) AI Deep Neural Network dengan Eksekusi Instan Real-Time saat Confidence >= 60%"
+#property version   "3.20"
+#property description "EA Scalping M1 Gold (XAUUSD) AI Deep Neural Network dengan Notifikasi Lengkap Open/Close Trade (+/- PnL & Saldo Terkini)"
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -87,7 +87,7 @@ input int                 InpBB_Period_M1          = 20;                    // M
 input double              InpBB_Dev_M1             = 2.0;                   // M1 BB Deviation
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "3.15";
+string                    g_current_version        = "3.20";
 double                    g_confidence_thresh      = 0.60;
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
@@ -247,7 +247,7 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
                                    "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot`\", \"inline\": true}";
             
             SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (AI-BRAIN v" + g_current_version + ")!", 
-                             "Target Profit Harian 15% Wallet & Max Loss 7% Wallet berhasil disinkronkan secara otomatis dari GitHub!", 
+                             "Pembaruan strategi dan sistem notifikasi Close Trade (+/- Saldo) berhasil disinkronkan!", 
                              0x9B59B6, update_fields, false);
          }
       }
@@ -321,7 +321,7 @@ double CalculateLotSize(double sl_points)
 }
 
 //+------------------------------------------------------------------+
-//| FORMAT NOTIFIKASI ORDER DISCORD DENGAN CONFIDENCE AI             |
+//| FORMAT NOTIFIKASI OPEN TRADE DISCORD                             |
 //+------------------------------------------------------------------+
 void NotifyAITrade(string type, double price, double lot_used, double sl, double tp, ulong ticket, float confidence, int spread_used)
 {
@@ -342,6 +342,62 @@ void NotifyAITrade(string type, double price, double lot_used, double sl, double
                     "Deep Neural Network AI mendeteksi probabilitas tinggi (" + DoubleToString(confidence * 100.0f, 1) + "%) pada timeframe M1/M15 Gold.", 
                     embed_color, 
                     fields, false);
+}
+
+//+------------------------------------------------------------------+
+//| FORMAT NOTIFIKASI CLOSE TRADE DISCORD (+/- PnL & SALDO TERKINI)  |
+//+------------------------------------------------------------------+
+void NotifyCloseTrade(string type, double close_price, double profit, ulong deal_ticket, double volume)
+{
+   int embed_color = (profit >= 0) ? 0x2ECC71 : 0xE74C3C;
+   string result_emoji = (profit >= 0) ? "🟢 **PROFIT CUAN**" : "🔴 **LOSS TERKENDALI**";
+   string pnl_sign = (profit >= 0) ? "+$" : "-$";
+   double abs_profit = MathAbs(profit);
+   double current_balance = m_account.Balance();
+   double daily_total_pl = GetDailyProfitLoss();
+
+   string fields = "{\"name\": \"📊 Hasil Transaksi\", \"value\": \"" + result_emoji + "\", \"inline\": true}," +
+                   "{\"name\": \"💵 Realized PnL\", \"value\": \"**" + pnl_sign + DoubleToString(abs_profit, 2) + "**\", \"inline\": true}," +
+                   "{\"name\": \"🏦 Saldo Akun Terkini\", \"value\": \"**`$" + DoubleToString(current_balance, 2) + "`**\", \"inline\": true}," +
+                   "{\"name\": \"🏷️ Posisi Ditutup\", \"value\": \"`" + type + " " + _Symbol + " (" + DoubleToString(volume, 2) + " Lot)`\", \"inline\": true}," +
+                   "{\"name\": \"🎯 Harga Close\", \"value\": \"`" + DoubleToString(close_price, _Digits) + "`\", \"inline\": true}," +
+                   "{\"name\": \"🏆 Total PnL Hari Ini\", \"value\": \"`" + ((daily_total_pl >= 0) ? "+$" : "-$") + DoubleToString(MathAbs(daily_total_pl), 2) + "`\", \"inline\": true}," +
+                   "{\"name\": \"🎫 Deal Ticket\", \"value\": \"`#" + IntegerToString(deal_ticket) + "`\", \"inline\": true}";
+
+   SendDiscordEmbed("🏁 POSISI SCALPING SELESAI DITUTUP (" + ((profit >= 0) ? "PROFIT" : "LOSS") + ")", 
+                    "Posisi scalping telah resmi ditutup (Take Profit / Stop Loss / Trailing Stop) dan saldo akun berhasil diperbarui.", 
+                    embed_color, 
+                    fields, (profit < -30.0));
+}
+
+//+------------------------------------------------------------------+
+//| EVENT ON TRADE TRANSACTION (DETEKSI CLOSE ORDER INSTAN)          |
+//+------------------------------------------------------------------+
+void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest &request, const MqlTradeResult &result)
+{
+   if(trans.type == TRADE_TRANSACTION_DEAL_ADD)
+   {
+      ulong deal_ticket = trans.deal;
+      if(HistoryDealSelect(deal_ticket))
+      {
+         long deal_magic = HistoryDealGetInteger(deal_ticket, DEAL_MAGIC);
+         long deal_entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
+         
+         // DEAL_ENTRY_OUT menandakan posisi resmi ditutup
+         if(deal_magic == InpMagicNumber && (deal_entry == DEAL_ENTRY_OUT || deal_entry == DEAL_ENTRY_INOUT || deal_entry == DEAL_ENTRY_OUT_BY))
+         {
+            double profit = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT) + 
+                            HistoryDealGetDouble(deal_ticket, DEAL_SWAP) + 
+                            HistoryDealGetDouble(deal_ticket, DEAL_COMMISSION);
+            double close_price = HistoryDealGetDouble(deal_ticket, DEAL_PRICE);
+            double volume = HistoryDealGetDouble(deal_ticket, DEAL_VOLUME);
+            long deal_type = HistoryDealGetInteger(deal_ticket, DEAL_TYPE);
+            string pos_type = (deal_type == DEAL_TYPE_BUY) ? "BUY (Tutup SELL)" : "SELL (Tutup BUY)";
+            
+            NotifyCloseTrade(pos_type, close_price, profit, deal_ticket, volume);
+         }
+      }
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -427,10 +483,10 @@ int OnInit()
                            "{\"name\": \"🛡️ Max Loss Harian\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (7% Wallet)`\", \"inline\": true}," +
                            "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Lot: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target SL / TP\", \"value\": \"`SL: " + IntegerToString(g_sl_points / 10) + " Pips | TP: " + IntegerToString(g_tp_points / 10) + " Pips`\", \"inline\": true}," +
-                           "{\"name\": \"⚡ Mode Eksekusi\", \"value\": \"`Instan Real-Time saat >= 60%`\", \"inline\": true}";
+                           "{\"name\": \"🔔 Notifikasi Webhook\", \"value\": \"`Open & Close (+/- & Saldo)`\", \"inline\": true}";
 
-   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif (v3.15)!", 
-                    "Expert Advisor bertenaga Deep Neural Network AI siap berburu scalping secara instan saat confidence mencapai >= 60%.", 
+   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif (v3.20)!", 
+                    "Expert Advisor siap berburu scalping lengkap dengan sistem pelaporan Close Trade (+/- PnL & Saldo Terkini).", 
                     0x3498DB, startup_fields, false);
 
    return INIT_SUCCEEDED;
@@ -646,7 +702,7 @@ void DisplayAIDashboard(const float &features[], float p_neu, float p_buy, float
    info += StringFormat(" 🎯 Target 15%% Cuan  : +$%.2f (Kunci Profit)\n", dynamic_target_usd);
    info += StringFormat(" 🛡️ Max Loss 7%% Rugi : -$%.2f (Rem Pengaman)\n", dynamic_max_loss_usd);
    info += StringFormat(" ☁️ OTA Cloud Status : AKTIF (Auto-Sync tiap %d Menit)\n", InpSyncIntervalMin);
-   info += " 📡 Discord Webhook  : TERHUBUNG ✅\n";
+   info += " 📡 Discord Webhook  : TERHUBUNG (Open & Close Notifications) ✅\n";
    info += "=========================================================\n";
 
    Comment(info);
