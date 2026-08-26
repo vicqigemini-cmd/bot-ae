@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL v21.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
+//|  APEX SOVEREIGN CITADEL v22.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
 //|  (SMC FVG • Golden Pocket 50-61.8% • 1:2.5 RR • Anti-Rungkad)    |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "21.00"
-#property description "Unified Master Brain EA v21.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
+#property version   "22.00"
+#property description "Unified Master Brain EA v22.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -158,8 +158,8 @@ input double              InpMaxPortfolioRiskPct   = 2.0;                   // B
 input int                 InpMaxTotalOpenTradesAll = 3;                     // Batas Maksimal Total Posisi Terbuka Seluruh Portofolio
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "21.00";
-string                    g_last_self_updated_ver  = "21.00";
+string                    g_current_version        = "22.00";
+string                    g_last_self_updated_ver  = "22.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_max_spread             = 70;
@@ -723,12 +723,12 @@ void CalculateM15FibonacciLevels(SFibLevels &out_fib, int lookback_bars=24)
 
    MqlRates rates[];
    ArraySetAsSeries(rates, true);
-   if(CopyRates(_Symbol, PERIOD_M15, 0, lookback_bars, rates) < lookback_bars) return;
+   if(CopyRates(_Symbol, PERIOD_M15, 0, lookback_bars + 1, rates) < lookback_bars + 1) return;
 
    double highest = -1e9, lowest = 1e9;
    int high_idx = 0, low_idx = 0;
 
-   for(int i = 0; i < lookback_bars; i++)
+   for(int i = 1; i <= lookback_bars; i++)
    {
       if(rates[i].high > highest) { highest = rates[i].high; high_idx = i; }
       if(rates[i].low < lowest)   { lowest = rates[i].low;   low_idx  = i; }
@@ -784,12 +784,12 @@ void CalculateH4FibonacciLevels(SFibLevels &out_fib, int lookback_bars=24)
 
    MqlRates rates[];
    ArraySetAsSeries(rates, true);
-   if(CopyRates(_Symbol, PERIOD_H4, 0, lookback_bars, rates) < lookback_bars) return;
+   if(CopyRates(_Symbol, PERIOD_H4, 0, lookback_bars + 1, rates) < lookback_bars + 1) return;
 
    double highest = -1e9, lowest = 1e9;
    int high_idx = 0, low_idx = 0;
 
-   for(int i = 0; i < lookback_bars; i++)
+   for(int i = 1; i <= lookback_bars; i++)
    {
       if(rates[i].high > highest) { highest = rates[i].high; high_idx = i; }
       if(rates[i].low < lowest)   { lowest = rates[i].low;   low_idx  = i; }
@@ -837,6 +837,25 @@ void CalculateH4FibonacciLevels(SFibLevels &out_fib, int lookback_bars=24)
 //+------------------------------------------------------------------+
 //| PEMILIHAN TIPE FILLING ORDER OTOMATIS ANTI-REJECTION             |
 //+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| PEMILIHAN TIPE FILLING & DEVIASI ADAPTIF                         |
+//+------------------------------------------------------------------+
+void SetAssetAdaptiveDeviation()
+{
+   ENUM_ASSET_CLASS asset = GetAssetClass(_Symbol);
+   ulong dev = (asset == ASSET_GOLD) ? 50 : (asset == ASSET_INDEX) ? 100 : 30;
+   m_trade.SetDeviationInPoints(dev);
+}
+
+void PreWarmIndicatorHistory()
+{
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   CopyRates(_Symbol, PERIOD_M15, 0, 500, rates);
+   CopyRates(_Symbol, PERIOD_H1, 0, 500, rates);
+   CopyRates(_Symbol, PERIOD_H4, 0, 500, rates);
+}
+
 void SetOptimalFillingMode()
 {
    uint filling = (uint)SymbolInfoInteger(_Symbol, SYMBOL_FILLING_MODE);
@@ -1471,7 +1490,8 @@ int OnInit()
 
    m_trade.SetMarginMode();
    SetOptimalFillingMode();
-   m_trade.SetDeviationInPoints(40);
+   SetAssetAdaptiveDeviation();
+   PreWarmIndicatorHistory();
 
    InitAccountMetadata();
    g_loss_cooldown_min = InpLossCooldownMinutes;
@@ -1520,7 +1540,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Lot Size Model\", \"value\": \"`" + (InpLotType == LOT_RISK_PERCENT ? "1.0% Equity Risk (" + DoubleToString(current_lot, 2) + " Lot)" : "Fixed/Step") + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v21.00 Anti-Rungkad)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v22.00 Anti-Rungkad)! 🚀", 
                     "Sistem M15 Single-Entry Sniper siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng kuantitatif mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -1879,7 +1899,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v21.00)        |
+//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v22.00)        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
@@ -1892,15 +1912,34 @@ void OnTick()
    CheckPropFirmDailyWatermark();
    if(g_prop_firm_locked) return;
 
-   // 3. Smart Perisai Jumat Malam
+   // 3. Smart Perisai Jumat Malam (Weekend Gap Protection)
    if(IsFridayWeekendCleanTime())
    {
       for(int i = PositionsTotal() - 1; i >= 0; i--)
       {
-         if(m_position.SelectByIndex(i) && m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicSniper)
+         if(m_position.SelectByIndex(i) && m_position.Symbol() == _Symbol)
          {
-            m_trade.SetExpertMagicNumber(InpMagicSniper);
-            m_trade.PositionClose(m_position.Ticket());
+            ulong p_magic = m_position.Magic();
+            if(p_magic == InpMagicSniper)
+            {
+               m_trade.SetExpertMagicNumber(InpMagicSniper);
+               m_trade.PositionClose(m_position.Ticket());
+            }
+            else if(p_magic == InpMagicSwing)
+            {
+               bool is_safe_be = false;
+               double p_sl = m_position.StopLoss();
+               double p_op = m_position.PriceOpen();
+               if(m_position.PositionType() == POSITION_TYPE_BUY && p_sl >= p_op) is_safe_be = true;
+               if(m_position.PositionType() == POSITION_TYPE_SELL && p_sl > 0 && p_sl <= p_op) is_safe_be = true;
+
+               if(!InpSwingHoldWeekendIfBE || !is_safe_be)
+               {
+                  m_trade.SetExpertMagicNumber(InpMagicSwing);
+                  m_trade.PositionClose(m_position.Ticket());
+                  Print("🛡️ [FRIDAY WEEKEND GUARD] Menutup posisi Swing yang belum True-BE sebelum penutupan pasar akhir pekan!");
+               }
+            }
          }
       }
    }
