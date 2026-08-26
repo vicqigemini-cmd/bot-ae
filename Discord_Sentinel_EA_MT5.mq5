@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  SOVEREIGN INSTITUTIONAL M1 GOLD SCALPER (XAUUSD) - v4.50        |
-//|  (Dynamic ATR • Multi-Stage TP • Anti-Rollover • Direction Lock)  |
+//|  ULTIMATE BULLETPROOF M1 GOLD SCALPER (XAUUSD) - v4.60           |
+//|  (Red News Guard • Friday Auto-Clean • Consecutive Loss Breaker) |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "4.50"
-#property description "EA Scalping M1 Gold (XAUUSD) Sovereign Edition. Dynamic ATR SL/TP, Multi-Stage Profit, Directional Lock, Anti-Rollover Spread Guard."
+#property version   "4.60"
+#property description "EA Scalping M1 Gold (XAUUSD) Ultimate Bulletproof Edition. Proteksi Lengkap: Red News Shield, Friday Auto-Close, Consecutive Loss Cooldown, Dynamic ATR, Tri-Layer."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -41,21 +41,23 @@ input group "=== 1. DISCORD NOTIFICATION WEBHOOK ==="
 input string              InpDiscordWebhookURL     = "https://discord.com/api/webhooks/1542059423999197184/KMcjEnHpAkMwoW8cwbQKdxnYYl4E0q2ENkRy-ICu0ssk_w6y3Eyihy5vNGHKkw1Ys61C"; // Webhook URL Pribadi
 input bool                InpEnableDiscord         = true;                                                                                                                            // Aktifkan Notifikasi Discord
 input string              InpDiscordMention        = "";                                                                                                                              // Mention Role/User
-input string              InpBotName               = "XAUUSD Sovereign Scalper";                                                                                                      // Nama Bot
+input string              InpBotName               = "XAUUSD Ultimate Scalper";                                                                                                       // Nama Bot
 
 input group "=== 2. OTA CLOUD AUTO-SYNC (1x PASANG = AUTO UPDATE) ==="
 input bool                InpEnableCloudSync       = true;                  // Aktifkan Sinkronisasi Cloud dari GitHub
 input int                 InpSyncIntervalMin       = 5;                     // Interval Cek Update Cloud (Menit)
 
-input group "=== 3. SOVEREIGN ENGINE & SAFETY GUARDS ==="
+input group "=== 3. ULTIMATE SHIELDS & CIRCUIT BREAKERS ==="
 input ulong               InpMagicNumber           = 202611;                // Magic Number EA
-input string              InpTradeComment          = "Sovereign_XAU";       // Label Order
-input bool                InpUseDynamicATR         = true;                  // SL & TP Adaptif Volatilitas (ATR M1)
-input int                 InpATR_Period            = 14;                    // ATR Period
+input string              InpTradeComment          = "Ultimate_XAU";        // Label Order
+input bool                InpUseRedNewsGuard       = true;                  // Perisai Berita Merah AS (CPI, NFP, FOMC)
+input int                 InpNewsBufferMin         = 15;                    // Jeda Menit Sebelum & Sesudah Berita Merah
+input bool                InpUseFridayAutoClean    = true;                  // Bersihkan Semua Posisi Setiap Jumat Malam (21:00)
+input bool                InpUseLossCircuitBreaker = true;                  // Rem Pengaman Rugi Beruntun (2x SL = Cooldown 30 Mnt)
 input bool                InpUseDirectionalLock    = true;                  // Kunci 1 Arah (Haram Hedging saat Layer Aktif)
 input bool                InpUseRolloverGuard      = true;                  // Pelindung Jam Rollover Broker (23:50-01:10)
-input int                 InpMinLayerDistancePts   = 30;                    // Jarak Minimal Antar Layer (Points, 30 pts = 3 pips)
 input int                 InpMaxOpenPositions      = 3;                     // Max Posisi Scalping Aktif (Tri-Layer Sweet Spot)
+input int                 InpMinLayerDistancePts   = 30;                    // Jarak Minimal Antar Layer (Points, 30 pts = 3 pips)
 
 input group "=== 4. MONEY & RISK MANAGEMENT ==="
 input ENUM_LOT_TYPE       InpLotType               = LOT_PER_BALANCE;       // Mode Lot Sizing
@@ -80,7 +82,7 @@ input bool                InpUseDailyGuard         = true;                  // A
 input double              InpDailyTargetPercent    = 15.0;                  // Target Profit Harian (15% dari Total Wallet)
 input double              InpDailyMaxLossPercent   = 7.0;                   // Batas Rem Rugi Harian (7% dari Total Wallet)
 
-input group "=== 7. M1 INDICATOR PARAMETERS (HYPER RESPONSIVE) ==="
+input group "=== 7. M1 INDICATOR PARAMETERS ==="
 input int                 InpEMA_Fast_M1           = 5;                     // M1 Ultra-Fast EMA Period
 input int                 InpEMA_Slow_M1           = 13;                    // M1 Momentum EMA Period
 input int                 InpStoch_K               = 5;                     // Fast Stochastic %K
@@ -88,9 +90,10 @@ input int                 InpStoch_D               = 3;                     // F
 input int                 InpStoch_Slowing         = 3;                     // Fast Stochastic Slowing
 input int                 InpBB_Period_M1          = 20;                    // M1 Bollinger Bands Period
 input double              InpBB_Dev_M1             = 2.0;                   // M1 BB Deviation
+input int                 InpATR_Period            = 14;                    // ATR Period
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "4.50";
+string                    g_current_version        = "4.60";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_sl_points              = 120;
@@ -120,6 +123,8 @@ int handle_atr_m1    = INVALID_HANDLE;
 
 datetime last_trade_time = 0;
 datetime m_last_cloud_sync_time = 0;
+datetime g_cooldown_until = 0;
+int      g_consecutive_losses = 0;
 
 STrackedPos g_tracked_positions[];
 ulong g_notified_deals[];
@@ -178,7 +183,7 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
    string content_header = "";
    if(is_critical && InpDiscordMention != "")
    {
-      content_header = "\"content\": \"🚨 " + InpDiscordMention + " — **[SOVEREIGN SCALPER ALERT]**\", ";
+      content_header = "\"content\": \"🚨 " + InpDiscordMention + " — **[ULTIMATE SHIELD ALERT]**\", ";
    }
 
    string payload = "{" + content_header +
@@ -188,7 +193,7 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
                     "\"description\": \"" + description + "\"," +
                     "\"color\": " + IntegerToString(color_hex) + "," +
                     "\"fields\": [" + fields_json + "]," +
-                    "\"footer\": {\"text\": \"XAUUSD Sovereign Scalper Sentinel MT5 v" + g_current_version + " • " + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
+                    "\"footer\": {\"text\": \"XAUUSD Ultimate Scalper Sentinel MT5 v" + g_current_version + " • " + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
                     "}]}";
 
    char post_data[];
@@ -244,14 +249,14 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
             double target_usd = cur_bal * (g_daily_target_pct / 100.0);
             double loss_usd = cur_bal * (g_daily_max_loss_pct / 100.0);
 
-            string update_fields = "{\"name\": \"⚡ Sovereign Engine\", \"value\": \"`v" + g_current_version + " (Sovereign Edition)`\", \"inline\": true}," +
+            string update_fields = "{\"name\": \"⚡ Ultimate Engine\", \"value\": \"`v" + g_current_version + " (Bulletproof Edition)`\", \"inline\": true}," +
                                    "{\"name\": \"🎯 Target Harian (15%)\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (" + DoubleToString(g_daily_target_pct, 0) + "% Wallet)`\", \"inline\": true}," +
                                    "{\"name\": \"🛡️ Max Loss Harian (7%)\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (" + DoubleToString(g_daily_max_loss_pct, 0) + "% Wallet)`\", \"inline\": true}," +
-                                   "{\"name\": \"⚡ Tri-Layer Sweet Spot\", \"value\": \"`Max " + IntegerToString(g_max_open_pos) + " Posisi (Min " + IntegerToString(g_min_layer_dist / 10) + " Pips)`\", \"inline\": true}," +
+                                   "{\"name\": \"🛡️ Ultimate Shields\", \"value\": \"`Red News + Friday Clean + Loss Cooldown`\", \"inline\": true}," +
                                    "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot`\", \"inline\": true}";
             
-            SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (SOVEREIGN v" + g_current_version + ")!", 
-                             "5 Pilar Optimalisasi Institusional (Dynamic ATR, Multi-Stage TP, Directional Lock) resmi aktif!", 
+            SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (ULTIMATE v" + g_current_version + ")!", 
+                             "Seluruh 3 Perisai Utama (Red News Shield, Friday Auto-Close, Consecutive Loss Cooldown) aktif!", 
                              0x9B59B6, update_fields, false);
          }
       }
@@ -259,7 +264,127 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
 }
 
 //+------------------------------------------------------------------+
-//| HITUNG PROFIT / LOSS HARIAN (DAILY GUARD)                        |
+//| DETEKSI BERITA MERAH AS (HIGH-IMPACT NEWS GUARD)                 |
+//+------------------------------------------------------------------+
+bool IsHighImpactNewsTime()
+{
+   if(!InpUseRedNewsGuard) return false;
+
+   // 1. Cek Kalender Bawaan MT5 (MQL5 Native Calendar)
+   MqlCalendarValue values[];
+   datetime from_time = TimeCurrent() - InpNewsBufferMin * 60;
+   datetime to_time   = TimeCurrent() + InpNewsBufferMin * 60;
+
+   // Mencari event USD dengan importance HIGH (Merah)
+   int total_events = CalendarValueHistory(values, from_time, to_time, "US");
+   if(total_events > 0)
+   {
+      for(int i = 0; i < total_events; i++)
+      {
+         MqlCalendarEvent event;
+         if(CalendarEventById(values[i].event_id, event))
+         {
+            if(event.importance == CALENDAR_IMPORTANCE_HIGH)
+            {
+               return true; // Ditemukan Berita Merah Aktif!
+            }
+         }
+      }
+   }
+
+   // 2. Klaster Jam Keramat Rilis Berita AS (19:30, 21:00, 01:00 WIB)
+   MqlDateTime dt;
+   TimeToStruct(TimeCurrent(), dt);
+   
+   // Sesi 1: 12:30 UTC / 19:30 WIB (CPI, NFP, Retail Sales, GDP)
+   if(dt.hour == 12 && dt.min >= (30 - InpNewsBufferMin) && dt.min <= (30 + InpNewsBufferMin)) return true;
+   if(dt.hour == 13 && dt.min <= (InpNewsBufferMin - 30 + 60) && (30 + InpNewsBufferMin) > 60) return true;
+
+   // Sesi 2: 14:00 UTC / 21:00 WIB (ISM Services, Consumer Confidence)
+   if(dt.hour == 14 && dt.min <= InpNewsBufferMin) return true;
+   if(dt.hour == 13 && dt.min >= (60 - InpNewsBufferMin)) return true;
+
+   // Sesi 3: 18:00 UTC / 01:00 WIB (FOMC Decision & Press Conference)
+   if(dt.hour == 18 && dt.min <= InpNewsBufferMin) return true;
+   if(dt.hour == 17 && dt.min >= (60 - InpNewsBufferMin)) return true;
+
+   return false;
+}
+
+//+------------------------------------------------------------------+
+//| DETEKSI PENUTUPAN JUMAT MALAM (FRIDAY WEEKEND CLEAN)             |
+//+------------------------------------------------------------------+
+bool IsFridayWeekendCleanTime()
+{
+   if(!InpUseFridayAutoClean) return false;
+   MqlDateTime dt;
+   TimeToStruct(TimeCurrent(), dt);
+
+   // Hari Jumat (DayOfWeek = 5), Pukul 14:00 UTC / 21:00 WIB ke atas
+   if(dt.day_of_week == 5 && dt.hour >= 14)
+   {
+      return true;
+   }
+   return false;
+}
+
+//+------------------------------------------------------------------+
+//| BERSIHKAN SEMUA POSISI JUMAT MALAM                               |
+//+------------------------------------------------------------------+
+void CloseAllPositionsForWeekend()
+{
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      if(m_position.SelectByIndex(i))
+      {
+         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
+         {
+            m_trade.PositionClose(m_position.Ticket());
+         }
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| CEK JAM ROLLOVER SPREAD SPIKE (23:50 - 01:10)                    |
+//+------------------------------------------------------------------+
+bool IsRolloverTime()
+{
+   if(!InpUseRolloverGuard) return false;
+   MqlDateTime dt;
+   TimeToStruct(TimeCurrent(), dt);
+
+   if((dt.hour == 23 && dt.min >= 50) || (dt.hour == 0) || (dt.hour == 1 && dt.min <= 10))
+   {
+      return true;
+   }
+   return false;
+}
+
+//+------------------------------------------------------------------+
+//| KALKULASI ADAPTIF ATR SL & TP                                    |
+//+------------------------------------------------------------------+
+void CalculateDynamicSLTP(int &calc_sl, int &calc_tp)
+{
+   calc_sl = g_sl_points;
+   calc_tp = g_tp_points;
+
+   if(handle_atr_m1 == INVALID_HANDLE) return;
+
+   double atr_buf[];
+   ArraySetAsSeries(atr_buf, true);
+   if(CopyBuffer(handle_atr_m1, 0, 0, 1, atr_buf) > 0)
+   {
+      double point = m_symbol.Point();
+      double atr_points = atr_buf[0] / point;
+
+      calc_sl = (int)MathMax(100, MathMin(160, atr_points * 1.5));
+      calc_tp = (int)MathMax(150, MathMin(280, atr_points * 2.5));
+   }
+}
+
+//+------------------------------------------------------------------+
+//| HITUNG PROFIT / LOSS HARIAN                                      |
 //+------------------------------------------------------------------+
 double GetDailyProfitLoss()
 {
@@ -280,48 +405,6 @@ double GetDailyProfitLoss()
       }
    }
    return total_profit;
-}
-
-//+------------------------------------------------------------------+
-//| CEK JAM ROLLOVER SPREAD SPIKE (23:50 - 01:10)                    |
-//+------------------------------------------------------------------+
-bool IsRolloverTime()
-{
-   if(!InpUseRolloverGuard) return false;
-   MqlDateTime dt;
-   TimeToStruct(TimeCurrent(), dt);
-
-   // Server rollover spread spike biasa terjadi antara 23:50 s/d 01:10
-   if((dt.hour == 23 && dt.min >= 50) || (dt.hour == 0) || (dt.hour == 1 && dt.min <= 10))
-   {
-      return true;
-   }
-   return false;
-}
-
-//+------------------------------------------------------------------+
-//| KALKULASI ADAPTIF ATR SL & TP                                    |
-//+------------------------------------------------------------------+
-void CalculateDynamicSLTP(int &calc_sl, int &calc_tp)
-{
-   calc_sl = g_sl_points;
-   calc_tp = g_tp_points;
-
-   if(!InpUseDynamicATR || handle_atr_m1 == INVALID_HANDLE) return;
-
-   double atr_buf[];
-   ArraySetAsSeries(atr_buf, true);
-   if(CopyBuffer(handle_atr_m1, 0, 0, 1, atr_buf) > 0)
-   {
-      double point = m_symbol.Point();
-      double atr_points = atr_buf[0] / point;
-
-      // Dynamic SL = 1.5x ATR M1 (Batas: 100 s/d 160 points / 10-16 pips)
-      calc_sl = (int)MathMax(100, MathMin(160, atr_points * 1.5));
-
-      // Dynamic TP = 2.5x ATR M1 (Batas: 150 s/d 280 points / 15-28 pips)
-      calc_tp = (int)MathMax(150, MathMin(280, atr_points * 2.5));
-   }
 }
 
 //+------------------------------------------------------------------+
@@ -376,17 +459,17 @@ void NotifyAITrade(string type, double price, double lot_used, double sl, double
 
    string fields = "{\"name\": \"🏷️ Tipe Order\", \"value\": \"" + emoji + " **" + type + " (Layer " + IntegerToString(current_layers) + "/" + IntegerToString(g_max_open_pos) + ")**\", \"inline\": true}," +
                    "{\"name\": \"⚡ Pemicu Sniper\", \"value\": \"`" + trigger_source + "`\", \"inline\": true}," +
-                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Sovereign)`\", \"inline\": true}," +
+                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Bulletproof)`\", \"inline\": true}," +
                    "{\"name\": \"📊 Simbol & Lot\", \"value\": \"`" + _Symbol + "` (**" + DoubleToString(lot_used, 2) + " Lot**)\", \"inline\": true}," +
-                   "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(price, _Digits) + "` (Sniper Execution)\", \"inline\": true}," +
+                   "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(price, _Digits) + "` (Sniper Entry)\", \"inline\": true}," +
                    "{\"name\": \"🛡️ Dynamic SL\", \"value\": \"`" + DoubleToString(sl, _Digits) + "` (-" + IntegerToString(sl_pts / 10) + " Pips ATR)\", \"inline\": true}," +
                    "{\"name\": \"🎯 Dynamic TP\", \"value\": \"`" + DoubleToString(tp, _Digits) + "` (+" + IntegerToString(tp_pts / 10) + " Pips ATR)\", \"inline\": true}," +
                    "{\"name\": \"🛡️ Spread Saat Entry\", \"value\": \"`" + IntegerToString(spread_used) + " Points` (Aman)\", \"inline\": true}," +
                    "{\"name\": \"💰 Saldo Akun\", \"value\": \"`$" + DoubleToString(m_account.Balance(), 2) + "` ($500 = 0.01)\", \"inline\": true}," +
                    "{\"name\": \"🎫 Ticket ID\", \"value\": \"`#" + IntegerToString(ticket) + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("⚡ SOVEREIGN FAST SNIPER (" + type + " - Layer " + IntegerToString(current_layers) + ")", 
-                    "Eksekusi Instan M1: Terkonfirmasi Rejection Wick + Volatilitas Adaptif ATR.", 
+   SendDiscordEmbed("⚡ ULTIMATE FAST SNIPER (" + type + " - Layer " + IntegerToString(current_layers) + ")", 
+                    "Eksekusi Instan M1: Red News Clear + Rejection Wick + Volatilitas ATR Terkonfirmasi.", 
                     embed_color, 
                     fields, false);
 }
@@ -404,6 +487,26 @@ void NotifyCloseTrade(string type, double close_price, double profit, ulong deal
    ArrayResize(g_notified_deals, sz + 1);
    g_notified_deals[sz] = deal_ticket;
 
+   // Deteksi Consecutive Loss Circuit Breaker
+   if(profit < 0)
+   {
+      g_consecutive_losses++;
+      if(InpUseLossCircuitBreaker && g_consecutive_losses >= 2)
+      {
+         g_cooldown_until = TimeCurrent() + 30 * 60; // Rem 30 Menit
+         string cooldown_fields = "{\"name\": \"⚠️ Status Rem Pengaman\", \"value\": \"`2x Loss Beruntun Terdeteksi`\", \"inline\": true}," +
+                                  "{\"name\": \"⏳ Durasi Cooldown\", \"value\": \"`30 Menit (Hingga " + TimeToString(g_cooldown_until, TIME_MINUTES) + ")`\", \"inline\": true}," +
+                                  "{\"name\": \"🏦 Saldo Diamankan\", \"value\": \"`$" + DoubleToString(m_account.Balance(), 2) + "`\", \"inline\": true}";
+         SendDiscordEmbed("🛡️ CONSECUTIVE LOSS CIRCUIT BREAKER AKTIF!", 
+                          "Bot otomatis istirahat 30 menit untuk mendinginkan akun dan menunggu pasar membentuk tren baru.", 
+                          0xE67E22, cooldown_fields, true);
+      }
+   }
+   else
+   {
+      g_consecutive_losses = 0; // Reset counter saat cuan
+   }
+
    int embed_color = (profit >= 0) ? 0x2ECC71 : 0xE74C3C;
    string result_emoji = (profit >= 0) ? "🟢 **PROFIT CUAN**" : "🔴 **LOSS TERKENDALI**";
    string pnl_sign = (profit >= 0) ? "+$" : "-$";
@@ -412,7 +515,7 @@ void NotifyCloseTrade(string type, double close_price, double profit, ulong deal
    double daily_total_pl = GetDailyProfitLoss();
 
    string fields = "{\"name\": \"📊 Hasil Transaksi\", \"value\": \"" + result_emoji + "\", \"inline\": true}," +
-                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Sovereign)`\", \"inline\": true}," +
+                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Bulletproof)`\", \"inline\": true}," +
                    "{\"name\": \"💵 Realized PnL\", \"value\": \"**" + pnl_sign + DoubleToString(abs_profit, 2) + "**\", \"inline\": true}," +
                    "{\"name\": \"🏦 Saldo Akun Terkini\", \"value\": \"**`$" + DoubleToString(current_balance, 2) + "`**\", \"inline\": true}," +
                    "{\"name\": \"🏷️ Posisi Ditutup\", \"value\": \"`" + type + " " + _Symbol + " (" + DoubleToString(volume, 2) + " Lot)`\", \"inline\": true}," +
@@ -540,7 +643,7 @@ int OnInit()
    StringToUpper(sym);
    if(StringFind(sym, "XAU") < 0 && StringFind(sym, "GOLD") < 0)
    {
-      Alert("PERINGATAN: EA 'XAUUSD Sovereign Scalper' hanya boleh dipasang pada chart XAUUSD / GOLD!");
+      Alert("PERINGATAN: EA 'XAUUSD Ultimate Scalper' hanya boleh dipasang pada chart XAUUSD / GOLD!");
       return INIT_FAILED;
    }
 
@@ -581,7 +684,7 @@ int OnInit()
       handle_stoch_m1 == INVALID_HANDLE || handle_bb_m1 == INVALID_HANDLE ||
       handle_atr_m1 == INVALID_HANDLE)
    {
-      Print("[ERROR] Gagal inisialisasi indikator Sovereign M1!");
+      Print("[ERROR] Gagal inisialisasi indikator Ultimate M1!");
       return INIT_FAILED;
    }
 
@@ -590,15 +693,15 @@ int OnInit()
    double loss_usd = current_bal * (g_daily_max_loss_pct / 100.0);
    double current_lot = CalculateLotSize(g_sl_points);
 
-   string startup_fields = "{\"name\": \"⚡ Sovereign Engine\", \"value\": \"`v" + g_current_version + " (5 Pilar Institusional)`\", \"inline\": true}," +
+   string startup_fields = "{\"name\": \"⚡ Ultimate Engine\", \"value\": \"`v" + g_current_version + " (Bulletproof Edition)`\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target Cuan Harian\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (15% Wallet)`\", \"inline\": true}," +
                            "{\"name\": \"🛡️ Max Loss Harian\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (7% Wallet)`\", \"inline\": true}," +
-                           "{\"name\": \"⚡ Tri-Layer Sweet Spot\", \"value\": \"`Max 3 Posisi (Kunci 1 Arah Aktif)`\", \"inline\": true}," +
-                           "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Lot: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}," +
-                           "{\"name\": \"🛡️ Dynamic ATR Guard\", \"value\": \"`SL/TP Adaptif + Anti-Rollover 23:50-01:10`\", \"inline\": true}";
+                           "{\"name\": \"🛡️ Red News Shield\", \"value\": \"`Auto-Pause CPI/NFP/FOMC (15 Menit)`\", \"inline\": true}," +
+                           "{\"name\": \"📅 Friday Auto-Clean\", \"value\": \"`Auto-Close Jumat 21:00 WIB`\", \"inline\": true}," +
+                           "{\"name\": \"🔒 Loss Circuit Breaker\", \"value\": \"`2x SL = Cooldown 30 Menit`\", \"inline\": true}";
 
-   SendDiscordEmbed("⚡ XAUUSD Sovereign Scalper Aktif (v4.50)! 🚀", 
-                    "5 Pilar Institusional Aktif: Dynamic ATR Volatility, Multi-Stage TP, Directional Lock, Anti-Rollover Guard!", 
+   SendDiscordEmbed("⚡ XAUUSD Ultimate Bulletproof Scalper Aktif (v4.60)! 🚀", 
+                    "Seluruh Perisai Institusional Aktif: Red News Guard, Friday Auto-Close, Consecutive Loss Cooldown, Dynamic ATR Tri-Layer!", 
                     0x3498DB, startup_fields, false);
 
    return INIT_SUCCEEDED;
@@ -618,13 +721,17 @@ void OnDeinit(const int reason)
 }
 
 //+------------------------------------------------------------------+
-//| ON-CHART DASHBOARD SOVEREIGN SCALPER                             |
+//| ON-CHART DASHBOARD ULTIMATE SCALPER                              |
 //+------------------------------------------------------------------+
 void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_d, double bb_up, double bb_low, string signal_status, int dyn_sl, int dyn_tp)
 {
    long current_spread = m_symbol.Spread();
    string spread_status = (current_spread <= g_max_spread) ? "[AMAN ✅]" : "[TERLALU TINGGI 🚫]";
-   if(IsRolloverTime()) spread_status = "[ROLLOVER PAUSE ⏸️]";
+   
+   if(IsHighImpactNewsTime()) spread_status = "[🚨 RED NEWS SHIELD PAUSE]";
+   else if(IsFridayWeekendCleanTime()) spread_status = "[📅 FRIDAY WEEKEND PAUSE]";
+   else if(IsRolloverTime()) spread_status = "[⏸️ ROLLOVER PAUSE]";
+   else if(TimeCurrent() < g_cooldown_until) spread_status = "[⏳ LOSS COOLDOWN PAUSE]";
    
    double cur_bal = m_account.Balance();
    if(cur_bal <= 0) cur_bal = m_account.Equity();
@@ -655,16 +762,17 @@ void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_
    else if(sell_orders > 0) dir_status = StringFormat("SELL ONLY LOCKED 🔴 (%d/3 Layer)", sell_orders);
 
    string info = "=========================================================\n";
-   info += "       ⚡ XAUUSD SOVEREIGN SCALPER v" + g_current_version + " (INSTITUSIONAL)    \n";
+   info += "       ⚡ XAUUSD ULTIMATE BULLETPROOF SCALPER v" + g_current_version + "    \n";
    info += "=========================================================\n";
    info += StringFormat(" 💰 Balance / Equity : $%.2f / $%.2f\n", m_account.Balance(), m_account.Equity());
    info += StringFormat(" 📈 Auto-Lot Mode    : %.2f Lot ($%.0f = %.2f Lot)\n", lot, g_balance_step, g_lot_step);
-   info += StringFormat(" ⚡ Posisi Aktif     : %d / %d Posisi (Sweet Spot)\n", active_orders, g_max_open_pos);
+   info += StringFormat(" ⚡ Posisi Aktif     : %d / %d Posisi (Tri-Layer Grid)\n", active_orders, g_max_open_pos);
    info += StringFormat(" 🔒 Direction Lock   : %s\n", dir_status);
    info += "---------------------------------------------------------\n";
-   info += " [M1 DYNAMIC VOLATILITY & PRICE ACTION]\n";
-   info += StringFormat("  📈 M1 Momentum     : EMA5 (%.2f) vs EMA13 (%.2f) -> %s\n", ema5, ema13, (ema5 > ema13) ? "BULLISH 🟢" : "BEARISH 🔴");
-   info += StringFormat("  ⚡ Fast Stoch (5,3): K=%.1f | D=%.1f (%s)\n", stoch_k, stoch_d, (stoch_k < 25) ? "OVERSOLD 🟢" : (stoch_k > 75) ? "OVERBOUGHT 🔴" : "NEUTRAL ⚪");
+   info += " [SHIELDS & CIRCUIT BREAKERS STATUS]\n";
+   info += StringFormat("  🚨 Red News Guard  : %s\n", IsHighImpactNewsTime() ? "AKTIF PAUSE ⏸️ (Berita Merah)" : "CLEAR AMAN ✅");
+   info += StringFormat("  📅 Friday Clean    : %s\n", IsFridayWeekendCleanTime() ? "AKTIF PAUSE ⏸️ (Jumat Malam)" : "CLEAR AMAN ✅");
+   info += StringFormat("  ⏳ Loss Circuit    : %s\n", (TimeCurrent() < g_cooldown_until) ? "COOLING OFF ⏸️ (30 Mnt)" : "CLEAR SIAGA ✅");
    info += StringFormat("  🛡️ Dynamic ATR SL/TP: SL -%d Pips | TP +%d Pips\n", dyn_sl / 10, dyn_tp / 10);
    info += StringFormat("  🎯 Status Radar    : %s\n", signal_status);
    info += "---------------------------------------------------------\n";
@@ -672,7 +780,7 @@ void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_
    info += StringFormat(" 🏆 Profit Hari Ini  : %s$%.2f\n", (daily_pl >= 0) ? "+" : "-", MathAbs(daily_pl));
    info += StringFormat(" 🎯 Target 15%% Cuan  : +$%.2f (Kunci Profit)\n", dynamic_target_usd);
    info += StringFormat(" 🛡️ Max Loss 7%% Rugi : -$%.2f (Rem Pengaman)\n", dynamic_max_loss_usd);
-   info += " 📡 Discord Webhook  : TERHUBUNG (Multi-Stage Notifications) ✅\n";
+   info += " 📡 Discord Webhook  : TERHUBUNG (Perisai Lengkap Aktif) ✅\n";
    info += "=========================================================\n";
 
    Comment(info);
@@ -716,10 +824,9 @@ void ManageOpenPositions()
       {
          double profit_points = (current_bid - open_price) / point;
 
-         // Multi-Stage TP: Jika ada 3 posisi, tutup layer kedua/ketiga di +12 pips (120 pts)
+         // Multi-Stage TP: Tutup layer kedua/ketiga di +12 pips (120 pts)
          if(active_buy_count >= 2 && profit_points >= 120)
          {
-            // Amankan cuan cepat layer 2 & 3
             if(StringFind(m_position.Comment(), "Layer_2") != -1 || StringFind(m_position.Comment(), "Layer_3") != -1)
             {
                m_trade.PositionClose(ticket);
@@ -751,7 +858,7 @@ void ManageOpenPositions()
       {
          double profit_points = (open_price - current_ask) / point;
 
-         // Multi-Stage TP: Jika ada 3 posisi, tutup layer kedua/ketiga di +12 pips (120 pts)
+         // Multi-Stage TP: Tutup layer kedua/ketiga di +12 pips (120 pts)
          if(active_sell_count >= 2 && profit_points >= 120)
          {
             if(StringFind(m_position.Comment(), "Layer_2") != -1 || StringFind(m_position.Comment(), "Layer_3") != -1)
@@ -808,9 +915,9 @@ bool IsLayerDistanceValid(ENUM_ORDER_TYPE order_type, double entry_price)
 }
 
 //+------------------------------------------------------------------+
-//| BUKA POSISI SOVEREIGN SNIPER                                     |
+//| BUKA POSISI ULTIMATE SNIPER                                      |
 //+------------------------------------------------------------------+
-void ExecuteSovereignScalp(ENUM_ORDER_TYPE order_type, string trigger_source, int current_active_count, int dyn_sl_pts, int dyn_tp_pts)
+void ExecuteUltimateScalp(ENUM_ORDER_TYPE order_type, string trigger_source, int current_active_count, int dyn_sl_pts, int dyn_tp_pts)
 {
    double point = m_symbol.Point();
    double lot   = CalculateLotSize(dyn_sl_pts);
@@ -831,7 +938,7 @@ void ExecuteSovereignScalp(ENUM_ORDER_TYPE order_type, string trigger_source, in
 
       if(m_trade.Buy(lot, _Symbol, ask, sl, tp, comment_label))
       {
-         Print("🚀 [SOVEREIGN BUY EXECUTED - Layer ", current_active_count + 1, "/3] Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", ask);
+         Print("🚀 [ULTIMATE BUY EXECUTED - Layer ", current_active_count + 1, "/3] Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", ask);
          NotifyAITrade("BUY", ask, lot, sl, tp, m_trade.ResultOrder(), trigger_source, current_spread, current_active_count + 1, dyn_sl_pts, dyn_tp_pts);
          last_trade_time = TimeCurrent();
       }
@@ -841,14 +948,14 @@ void ExecuteSovereignScalp(ENUM_ORDER_TYPE order_type, string trigger_source, in
       double bid = m_symbol.Bid();
       if(!IsLayerDistanceValid(ORDER_TYPE_SELL, bid)) return;
 
-      double sl  = (dyn_sl_pts > 0) ? (bid + dyn_sl_pts * point) : 0;
+      double sl  = (dyn_sl_pts > 0) ? (bid - dyn_sl_pts * point) : 0;
       double tp  = (dyn_tp_pts > 0) ? (bid - dyn_tp_pts * point) : 0;
       sl = m_symbol.NormalizePrice(sl);
       tp = m_symbol.NormalizePrice(tp);
 
       if(m_trade.Sell(lot, _Symbol, bid, sl, tp, comment_label))
       {
-         Print("🚀 [SOVEREIGN SELL EXECUTED - Layer ", current_active_count + 1, "/3] Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", bid);
+         Print("🚀 [ULTIMATE SELL EXECUTED - Layer ", current_active_count + 1, "/3] Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", bid);
          NotifyAITrade("SELL", bid, lot, sl, tp, m_trade.ResultOrder(), trigger_source, current_spread, current_active_count + 1, dyn_sl_pts, dyn_tp_pts);
          last_trade_time = TimeCurrent();
       }
@@ -856,7 +963,7 @@ void ExecuteSovereignScalp(ENUM_ORDER_TYPE order_type, string trigger_source, in
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (SOVEREIGN INSTITUTIONAL ENGINE)               |
+//| ON TICK EXECUTION (ULTIMATE BULLETPROOF ENGINE)                  |
 //+------------------------------------------------------------------+
 void OnTick()
 {
@@ -869,23 +976,29 @@ void OnTick()
       m_last_cloud_sync_time = TimeCurrent();
    }
 
-   // 2. Eksekusi Proteksi Posisi (Multi-Stage TP, Fast BE, Trailing Stop)
+   // 2. Perisai Jumat Malam (Auto-Close seluruh posisi sebelum akhir pekan)
+   if(IsFridayWeekendCleanTime())
+   {
+      CloseAllPositionsForWeekend();
+   }
+
+   // 3. Eksekusi Proteksi Posisi (Multi-Stage TP, Fast BE, Trailing Stop)
    ManageOpenPositions();
 
-   // 3. Double-Check Deteksi Posisi Tertutup
+   // 4. Double-Check Deteksi Posisi Tertutup
    CheckPositionClosures();
 
-   // 4. Hitung Dynamic ATR SL & TP
+   // 5. Hitung Dynamic ATR SL & TP
    int dyn_sl_pts = g_sl_points;
    int dyn_tp_pts = g_tp_points;
    CalculateDynamicSLTP(dyn_sl_pts, dyn_tp_pts);
 
-   // 5. Ambil Data Candlestick M1 Terkini (Anatomi Price Action)
+   // 6. Ambil Data Candlestick M1 Terkini
    MqlRates rates_m1[];
    ArraySetAsSeries(rates_m1, true);
    if(CopyRates(_Symbol, PERIOD_M1, 0, 5, rates_m1) < 5) return;
 
-   // 6. Ambil Buffer Indikator M1 Fast
+   // 7. Ambil Buffer Indikator M1 Fast
    double ema5_buf[], ema13_buf[], stoch_k_buf[], stoch_d_buf[], bb_up_buf[], bb_low_buf[];
    ArraySetAsSeries(ema5_buf, true);
    ArraySetAsSeries(ema13_buf, true);
@@ -910,7 +1023,7 @@ void OnTick()
    double bb_up        = bb_up_buf[0];
    double bb_low       = bb_low_buf[0];
 
-   // 7. Analisis Anatomi Bar 1 yang Resmi Tertutup (Confirmed Anti-Repaint Wick)
+   // 8. Analisis Anatomi Bar 1 yang Resmi Tertutup (Confirmed Anti-Repaint Wick)
    double bar1_open  = rates_m1[1].open;
    double bar1_high  = rates_m1[1].high;
    double bar1_low   = rates_m1[1].low;
@@ -925,7 +1038,7 @@ void OnTick()
    bool is_bullish_engulf = (bar1_close > rates_m1[2].high) && (bar1_close > bar1_open);
    bool is_bearish_engulf = (bar1_close < rates_m1[2].low) && (bar1_close < bar1_open);
 
-   // 8. Cek Posisi Aktif & Directional Lock
+   // 9. Cek Posisi Aktif & Directional Lock
    int active_orders = 0;
    int active_buy_count = 0;
    int active_sell_count = 0;
@@ -937,12 +1050,12 @@ void OnTick()
          {
             active_orders++;
             if(m_position.PositionType() == POSITION_TYPE_BUY) active_buy_count++;
-            else if(m_position.PositionType() == POSITION_TYPE_SELL) active_sell_count++;
+            else if(m_position.PositionType() == POSITION_TYPE_SELL) sell_orders++;
          }
       }
    }
 
-   // 9. Sinyal Price Action & Micro BOS Instan
+   // 10. Sinyal Price Action & Micro BOS Instan
    bool buy_signal = false;
    bool sell_signal = false;
    string trigger_reason = "";
@@ -977,14 +1090,17 @@ void OnTick()
       }
    }
 
-   // 10. Update Dashboard On-Chart
+   // 11. Update Dashboard On-Chart
    string dashboard_status = "STANDBY HUNTING M1...";
-   if(IsRolloverTime()) dashboard_status = "⏸️ ROLLOVER TIME PAUSE (23:50-01:10)";
-   else if(buy_signal) dashboard_status = "🟢 SOVEREIGN BUY DETECTED! (" + trigger_reason + ")";
-   else if(sell_signal) dashboard_status = "🔴 SOVEREIGN SELL DETECTED! (" + trigger_reason + ")";
+   if(IsHighImpactNewsTime()) dashboard_status = "🚨 RED NEWS PAUSE (CPI/NFP/FOMC)";
+   else if(IsFridayWeekendCleanTime()) dashboard_status = "📅 FRIDAY WEEKEND PAUSE (21:00+)";
+   else if(IsRolloverTime()) dashboard_status = "⏸️ ROLLOVER TIME PAUSE (23:50-01:10)";
+   else if(TimeCurrent() < g_cooldown_until) dashboard_status = "⏳ LOSS COOLDOWN (30 Mnt Pause)";
+   else if(buy_signal) dashboard_status = "🟢 ULTIMATE BUY DETECTED! (" + trigger_reason + ")";
+   else if(sell_signal) dashboard_status = "🔴 ULTIMATE SELL DETECTED! (" + trigger_reason + ")";
    DisplayAIDashboard(ema5_curr, ema13_curr, stoch_k, stoch_d, bb_up, bb_low, dashboard_status, dyn_sl_pts, dyn_tp_pts);
 
-   // 11. Cek Proteksi Daily Target (15%) & Max Loss (7%) dari Wallet
+   // 12. Cek Proteksi Daily Target (15%) & Max Loss (7%) dari Wallet
    if(g_use_daily_guard)
    {
       double cur_bal = m_account.Balance();
@@ -997,28 +1113,31 @@ void OnTick()
       if(daily_pl >= dynamic_target_usd || daily_pl <= -dynamic_max_loss_usd) return;
    }
 
-   // 12. Validasi Rollover Pause, Spread & Maksimal 3 Posisi
+   // 13. Perisai Pelindung: Red News, Friday Weekend, Rollover, Loss Cooldown & Spread Guard
+   if(IsHighImpactNewsTime()) return;
+   if(IsFridayWeekendCleanTime()) return;
    if(IsRolloverTime()) return;
+   if(TimeCurrent() < g_cooldown_until) return;
    if(m_symbol.Spread() > g_max_spread) return;
    if(active_orders >= g_max_open_pos) return;
 
-   // 13. Directional Hegemony Guard (Haram Hedging saat Layer Berjalan)
+   // 14. Directional Hegemony Guard (Haram Hedging saat Layer Berjalan)
    if(InpUseDirectionalLock)
    {
-      if(active_buy_count > 0 && sell_signal) return; // Dilarang SELL jika ada BUY aktif
-      if(active_sell_count > 0 && buy_signal) return; // Dilarang BUY jika ada SELL aktif
+      if(active_buy_count > 0 && sell_signal) return;
+      if(active_sell_count > 0 && buy_signal) return;
    }
 
-   // 14. Cooldown Minimal 5 Detik Antar Order
+   // 15. Cooldown Minimal 5 Detik Antar Order
    if(TimeCurrent() - last_trade_time < 5) return;
 
-   // 15. EKSEKUSI SOVEREIGN SNIPER ORDER (Maksimal 3 Layer)
+   // 16. EKSEKUSI ULTIMATE SNIPER ORDER (Maksimal 3 Layer)
    if(buy_signal)
    {
-      ExecuteSovereignScalp(ORDER_TYPE_BUY, trigger_reason, active_orders, dyn_sl_pts, dyn_tp_pts);
+      ExecuteUltimateScalp(ORDER_TYPE_BUY, trigger_reason, active_orders, dyn_sl_pts, dyn_tp_pts);
    }
    else if(sell_signal)
    {
-      ExecuteSovereignScalp(ORDER_TYPE_SELL, trigger_reason, active_orders, dyn_sl_pts, dyn_tp_pts);
+      ExecuteUltimateScalp(ORDER_TYPE_SELL, trigger_reason, active_orders, dyn_sl_pts, dyn_tp_pts);
    }
 }
