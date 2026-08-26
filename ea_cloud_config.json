@@ -1,9 +1,12 @@
 {
-  "version": "14.00",
+  "version": "15.00",
   "sync_interval_min": 5,
-  "engine_name": "XAUUSD Institutional Kill-Zones & M15 Sniper Model (London & NY Edition)",
+  "engine_name": "Apex Sovereign Multi-Pair Portfolio Matrix & Shared Risk Engine (v15.00)",
   "emergency_close_all": false,
   "enable_auto_self_update": true,
+  "enable_multi_pair_mode": true,
+  "max_portfolio_risk_pct": 2.0,
+  "max_total_open_trades_all": 3,
   "use_kill_zones_only": true,
   "trade_london_kz": true,
   "london_kz_start_hour": 7,
@@ -53,5 +56,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v14.00 Institutional Kill-Zones & M15 Sniper Model: London Open (07-11 Server) & New York Open (13-17 Server) Kill-Zones Engine, Asian Chop Shield, Single Position M15 Confirmed Close Sniper, Structure SL (300-600 pts) & 1:2.5 RR TP, True Zero-Loss Commission-Aware BE, Golden Pocket 50-61.8% Fib, Prop Firm 4% Drawdown Defense, In-EA Autonomous Self-Updater."
+  "status_message": "OTA v15.00 Universal Multi-Pair Portfolio Matrix & Shared Risk Engine: Universal Asset Support (XAUUSD, Forex EUR/GBP, US30/NAS100 Index), Shared Portfolio Risk Cap (Max 2.0% Total Open Risk), Asset-Adaptive Structural SL/TP (1:2.5 RR), Institutional Kill-Zones Time Engine (London & NY), True-BE Anti-Minus, Prop Firm 4% Drawdown Defense, In-EA Autonomous Self-Updater."
 }
