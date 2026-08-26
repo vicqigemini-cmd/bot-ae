@@ -1,5 +1,5 @@
 {
-  "version": "3.05",
+  "version": "3.10",
   "sync_interval_min": 5,
   "engine_name": "XAUUSD AI-Brain Neural Scalper",
   "ai_confidence_threshold": 0.60,
@@ -14,7 +14,7 @@
   "trailing_distance_points": 80,
   "trailing_step_points": 20,
   "use_daily_guard": true,
-  "daily_target_profit_usd": 100.0,
-  "daily_max_loss_usd": 50.0,
-  "status_message": "OTA v3.05 Aktif - Auto-Lot Konservatif: $500 Saldo = 0.01 Lot dan kelipatannya ($1000 = 0.02 Lot)."
+  "daily_target_profit_percent": 15.0,
+  "daily_max_loss_percent": 7.0,
+  "status_message": "OTA v3.10 Aktif - Target Profit Harian 15% Total Wallet & Batas Rem Rugi Harian 7% Total Wallet."
 }
