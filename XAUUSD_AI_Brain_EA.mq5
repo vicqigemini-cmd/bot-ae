@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL v18.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
+//|  APEX SOVEREIGN CITADEL v19.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
 //|  (SMC FVG • Golden Pocket 50-61.8% • 1:2.5 RR • Anti-Rungkad)    |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "18.00"
-#property description "Unified Master Brain EA v18.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
+#property version   "19.00"
+#property description "Unified Master Brain EA v19.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -158,8 +158,8 @@ input double              InpMaxPortfolioRiskPct   = 2.0;                   // B
 input int                 InpMaxTotalOpenTradesAll = 3;                     // Batas Maksimal Total Posisi Terbuka Seluruh Portofolio
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "18.00";
-string                    g_last_self_updated_ver  = "18.00";
+string                    g_current_version        = "19.00";
+string                    g_last_self_updated_ver  = "19.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_max_spread             = 70;
@@ -986,7 +986,7 @@ bool IsInsideInstitutionalKillZone(string &out_session_name)
 void DetectM15FairValueGap(SFairValueGap &out_fvg)
 {
    datetime now = TimeCurrent();
-   if(now - g_last_fvg_time < 60 && g_last_fvg_time > 0)
+   if(now - g_last_fvg_time < 30 && g_last_fvg_time > 0)
    {
       out_fvg = g_cached_m15_fvg;
       return;
@@ -995,24 +995,29 @@ void DetectM15FairValueGap(SFairValueGap &out_fvg)
    out_fvg.exists = false;
    MqlRates rates[];
    ArraySetAsSeries(rates, true);
-   if(CopyRates(_Symbol, PERIOD_M15, 0, 5, rates) < 5) return;
+   if(CopyRates(_Symbol, PERIOD_M15, 0, 8, rates) < 8) return;
 
-   // 3-Bar FVG Check (Bar 1, Bar 2, Bar 3)
-   if(rates[3].high < rates[1].low)
+   // 8-Bar Multi-Imbalance Scanner
+   for(int i = 1; i <= 5; i++)
    {
-      out_fvg.exists = true;
-      out_fvg.is_bullish = true;
-      out_fvg.upper_level = rates[1].low;
-      out_fvg.lower_level = rates[3].high;
-      out_fvg.time_created = rates[2].time;
-   }
-   else if(rates[3].low > rates[1].high)
-   {
-      out_fvg.exists = true;
-      out_fvg.is_bullish = false;
-      out_fvg.upper_level = rates[3].low;
-      out_fvg.lower_level = rates[1].high;
-      out_fvg.time_created = rates[2].time;
+      if(rates[i+2].high < rates[i].low)
+      {
+         out_fvg.exists = true;
+         out_fvg.is_bullish = true;
+         out_fvg.upper_level = rates[i].low;
+         out_fvg.lower_level = rates[i+2].high;
+         out_fvg.time_created = rates[i+1].time;
+         break;
+      }
+      else if(rates[i+2].low > rates[i].high)
+      {
+         out_fvg.exists = true;
+         out_fvg.is_bullish = false;
+         out_fvg.upper_level = rates[i+2].low;
+         out_fvg.lower_level = rates[i].high;
+         out_fvg.time_created = rates[i+1].time;
+         break;
+      }
    }
 
    g_cached_m15_fvg = out_fvg;
@@ -1487,7 +1492,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Lot Size Model\", \"value\": \"`" + (InpLotType == LOT_RISK_PERCENT ? "1.0% Equity Risk (" + DoubleToString(current_lot, 2) + " Lot)" : "Fixed/Step") + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v18.00 Anti-Rungkad)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v19.00 Anti-Rungkad)! 🚀", 
                     "Sistem M15 Single-Entry Sniper siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng kuantitatif mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -1628,16 +1633,21 @@ void ManageOpenPositions()
 
       if(magic == InpMagicSniper)
       {
+         double initial_sl_dist_pts = InpMinSLPoints;
+         if(cur_tp > 0 && InpRiskRewardRatio > 0)
+         {
+            initial_sl_dist_pts = MathAbs(cur_tp - open_p) / (InpRiskRewardRatio * point);
+         }
+         if(initial_sl_dist_pts < InpMinSLPoints) initial_sl_dist_pts = InpMinSLPoints;
+
          if(m_position.PositionType() == POSITION_TYPE_BUY)
          {
             double profit_pts = (cur_bid - open_p) / point;
-            double sl_dist_pts = (cur_sl > 0) ? (open_p - cur_sl) / point : InpMinSLPoints;
-            if(sl_dist_pts <= 0) sl_dist_pts = InpMinSLPoints;
 
-            // 1. Stage 1: Lock Profit when Profit >= 1.5x SL Distance
-            if(profit_pts >= 1.5 * sl_dist_pts)
+            // 1. Stage 1: Lock Profit when Profit >= 1.5x SL Distance (+0.5R Lock)
+            if(profit_pts >= 1.5 * initial_sl_dist_pts)
             {
-               double lock_sl = m_symbol.NormalizePrice(open_p + (0.5 * sl_dist_pts) * point);
+               double lock_sl = m_symbol.NormalizePrice(open_p + (0.5 * initial_sl_dist_pts) * point);
                if(cur_sl < lock_sl && (cur_bid - lock_sl >= min_stop_dist))
                {
                   m_trade.SetExpertMagicNumber(InpMagicSniper);
@@ -1646,9 +1656,9 @@ void ManageOpenPositions()
                }
             }
             // 2. Stage 2: Trailing Stop when Profit >= 2.0x SL Distance
-            else if(InpUseM15Trailing && profit_pts >= 2.0 * sl_dist_pts)
+            else if(InpUseM15Trailing && profit_pts >= 2.0 * initial_sl_dist_pts)
             {
-               double new_sl = m_symbol.NormalizePrice(cur_bid - sl_dist_pts * 0.8 * point);
+               double new_sl = m_symbol.NormalizePrice(cur_bid - (0.8 * initial_sl_dist_pts) * point);
                if(new_sl > cur_sl + InpTrailingStepPts * point && (cur_bid - new_sl >= min_stop_dist))
                {
                   m_trade.SetExpertMagicNumber(InpMagicSniper);
@@ -1659,13 +1669,11 @@ void ManageOpenPositions()
          else if(m_position.PositionType() == POSITION_TYPE_SELL)
          {
             double profit_pts = (open_p - cur_ask) / point;
-            double sl_dist_pts = (cur_sl > 0) ? (cur_sl - open_p) / point : InpMinSLPoints;
-            if(sl_dist_pts <= 0) sl_dist_pts = InpMinSLPoints;
 
-            // 1. Stage 1: Lock Profit when Profit >= 1.5x SL Distance
-            if(profit_pts >= 1.5 * sl_dist_pts)
+            // 1. Stage 1: Lock Profit when Profit >= 1.5x SL Distance (+0.5R Lock)
+            if(profit_pts >= 1.5 * initial_sl_dist_pts)
             {
-               double lock_sl = m_symbol.NormalizePrice(open_p - (0.5 * sl_dist_pts) * point);
+               double lock_sl = m_symbol.NormalizePrice(open_p - (0.5 * initial_sl_dist_pts) * point);
                if((cur_sl == 0 || cur_sl > lock_sl) && (lock_sl - cur_ask >= min_stop_dist))
                {
                   m_trade.SetExpertMagicNumber(InpMagicSniper);
@@ -1674,9 +1682,9 @@ void ManageOpenPositions()
                }
             }
             // 2. Stage 2: Trailing Stop when Profit >= 2.0x SL Distance
-            else if(InpUseM15Trailing && profit_pts >= 2.0 * sl_dist_pts)
+            else if(InpUseM15Trailing && profit_pts >= 2.0 * initial_sl_dist_pts)
             {
-               double new_sl = m_symbol.NormalizePrice(cur_ask + sl_dist_pts * 0.8 * point);
+               double new_sl = m_symbol.NormalizePrice(cur_ask + (0.8 * initial_sl_dist_pts) * point);
                if((cur_sl == 0 || new_sl < cur_sl - InpTrailingStepPts * point) && (new_sl - cur_ask >= min_stop_dist))
                {
                   m_trade.SetExpertMagicNumber(InpMagicSniper);
@@ -1813,7 +1821,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v18.00)        |
+//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v19.00)        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
@@ -1989,49 +1997,44 @@ void OnTick()
    bool sniper_sell_sig = false;
    string sniper_reason = "";
 
-   // Hanya dievaluasi tepat saat Candle M15 Selesai Tutup
+   // Evaluasi Sinyal pada Jendela 90-Detik Pertama Pembukaan Candle M15 (Anti-Spread Spike Miss)
    datetime current_m15_bar_time = rates_m15[0].time;
-   if(current_m15_bar_time != g_last_m15_eval_bar)
+   bool is_bar_opening_window = (TimeCurrent() - current_m15_bar_time <= 90);
+   bool is_new_m15_bar        = (current_m15_bar_time != g_last_m15_eval_bar);
+
+   if((is_new_m15_bar || is_bar_opening_window) && sniper_total == 0)
    {
       double ask_now = m_symbol.Ask();
       double bid_now = m_symbol.Bid();
 
-      // Cek FVG M15
+      // Cek FVG M15 (8-Bar Imbalance Lookback)
       SFairValueGap fvg;
       DetectM15FairValueGap(fvg);
 
       // BUY CONFLUENCE SETUP (A+ Institutional Quality Only)
       if(macro_bullish && rsi_m15 >= 40.0 && rsi_m15 <= 60.0 && is_bullish_rejection)
       {
-         bool in_fib_pocket = (bar1_low <= fib_m15.fib_500 && bar1_close >= fib_m15.fib_786);
+         bool in_fib_pocket = (fib_m15.fib_500 > 0 && bar1_low <= fib_m15.fib_500 && bar1_close >= fib_m15.fib_786);
          bool in_fvg_retest = (fvg.exists && fvg.is_bullish && bar1_low <= fvg.upper_level && bar1_close >= fvg.lower_level);
 
          if(in_fib_pocket || in_fvg_retest)
          {
-            if(sniper_total == 0)
-            {
-               sniper_buy_sig = true;
-               sniper_reason = in_fib_pocket ? "M15 Golden Fib Pocket (50-61.8%) Rejection" : "M15 FVG Retest Rejection";
-            }
+            sniper_buy_sig = true;
+            sniper_reason = in_fib_pocket ? "M15 Golden Fib Pocket (50-61.8%) Rejection" : "M15 FVG Retest Rejection";
          }
       }
       // SELL CONFLUENCE SETUP (A+ Institutional Quality Only)
       else if(macro_bearish && rsi_m15 >= 40.0 && rsi_m15 <= 60.0 && is_bearish_rejection)
       {
-         bool in_fib_pocket = (bar1_high >= fib_m15.fib_500 && bar1_close <= fib_m15.fib_786);
+         bool in_fib_pocket = (fib_m15.fib_500 > 0 && bar1_high >= fib_m15.fib_500 && bar1_close <= fib_m15.fib_786);
          bool in_fvg_retest = (fvg.exists && !fvg.is_bullish && bar1_high >= fvg.lower_level && bar1_close <= fvg.upper_level);
 
          if(in_fib_pocket || in_fvg_retest)
          {
-            if(sniper_total == 0)
-            {
-               sniper_sell_sig = true;
-               sniper_reason = in_fib_pocket ? "M15 Golden Fib Pocket (50-61.8%) Rejection" : "M15 FVG Retest Rejection";
-            }
+            sniper_sell_sig = true;
+            sniper_reason = in_fib_pocket ? "M15 Golden Fib Pocket (50-61.8%) Rejection" : "M15 FVG Retest Rejection";
          }
       }
-
-      g_last_m15_eval_bar = current_m15_bar_time;
    }
 
    // =================================================================
