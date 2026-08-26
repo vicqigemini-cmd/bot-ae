@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  AI-Powered Dual-Regime M1/M15 Neural Scalper for Gold (XAUUSD)  |
-//|  (Institutional Confluence • Version Tagged Webhooks • Max 7)   |
+//|  HYPER-FAST M1 PRICE ACTION & MOMENTUM SCALPER FOR GOLD (XAUUSD) |
+//|  (Pure M1 Micro-Structure • Wick Sniper • Fast Stoch • Multi-7)  |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "3.55"
-#property description "EA Scalping M1 Gold (XAUUSD) AI Deep Neural Network dengan Versi Brain di Setiap Laporan Discord Webhook"
+#property version   "4.00"
+#property description "EA Scalping M1 Gold (XAUUSD) Hyper-Fast Price Action & Momentum Sniper. Eksekusi Cepat, Rejection Wick, Fast Stoch, Tanpa Delay."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -18,12 +18,6 @@
 #define CLOUD_CONFIG_URL "https://raw.githubusercontent.com/vicqigemini-cmd/bot-ae/main/ea_cloud_config.json"
 
 //--- Enums
-enum ENUM_AI_ENGINE_MODE
-{
-   AI_BUILTIN_NEURAL_NET = 0, // Built-in Deep Neural Network (MLP 7->8->6->3)
-   AI_ONNX_MODEL_FILE    = 1  // Native ONNX Runtime (xauusd_m1_brain.onnx)
-};
-
 enum ENUM_LOT_TYPE
 {
    LOT_PER_BALANCE  = 0, // Auto-Lot Proporsional ($500 = 0.01 Lot)
@@ -47,76 +41,66 @@ input group "=== 1. DISCORD NOTIFICATION WEBHOOK ==="
 input string              InpDiscordWebhookURL     = "https://discord.com/api/webhooks/1542059423999197184/KMcjEnHpAkMwoW8cwbQKdxnYYl4E0q2ENkRy-ICu0ssk_w6y3Eyihy5vNGHKkw1Ys61C"; // Webhook URL Pribadi
 input bool                InpEnableDiscord         = true;                                                                                                                            // Aktifkan Notifikasi Discord
 input string              InpDiscordMention        = "";                                                                                                                              // Mention Role/User
-input string              InpBotName               = "XAUUSD AI-Brain Sentinel";                                                                                                      // Nama Bot
+input string              InpBotName               = "XAUUSD Hyper-Scalper Sentinel";                                                                                                 // Nama Bot
 
 input group "=== 2. OTA CLOUD AUTO-SYNC (1x PASANG = AUTO UPDATE) ==="
-input bool                InpEnableCloudSync       = true;                  // Aktifkan Sinkronisasi Parameter Otomatis dari GitHub
+input bool                InpEnableCloudSync       = true;                  // Aktifkan Sinkronisasi Cloud dari GitHub
 input int                 InpSyncIntervalMin       = 5;                     // Interval Cek Update Cloud (Menit)
 
-input group "=== 3. AI BRAIN & ENGINE SETTINGS ==="
-input ENUM_AI_ENGINE_MODE InpAIMode                = AI_BUILTIN_NEURAL_NET; // Mode Engine AI
-input string              InpONNXFileName          = "xauusd_m1_brain.onnx";// Nama File ONNX (jika Mode ONNX)
-input double              InpAIConfidenceThreshold = 0.60;                  // Ambang Keyakinan AI (0.50 - 0.90)
+input group "=== 3. HYPER-FAST M1 SCALPING ENGINE SETTINGS ==="
 input ulong               InpMagicNumber           = 202611;                // Magic Number EA
-input string              InpTradeComment          = "AI_Brain_XAU";        // Label Order
+input string              InpTradeComment          = "HyperScalp_XAU";      // Label Order
+input bool                InpUseWickRejection      = true;                  // Eksekusi Pantulan Jarum Candle M1 (Wick Sniper)
+input bool                InpUseMomentumBreakout   = true;                  // Eksekusi Ledakan Momentum M1 (EMA 5/13 Cross)
+input bool                InpUseFastStochFilter    = true;                  // Konfirmasi Fast Stochastic M1 (5, 3, 3)
+input int                 InpMinLayerDistancePts   = 30;                    // Jarak Minimal Antar Layer (Points, 30 pts = 3 pips)
 
-input group "=== 4. INSTITUTIONAL ENTRY FILTERS (M15 & M1) ==="
-input bool                InpUseTrendFilterM15     = true;                  // Wajib Selaras Tren M15 (EMA20 vs EMA50)
-input double              InpMinADXTrendM15        = 18.0;                  // Minimal ADX M15 (Filter Pasar Sideways)
-input bool                InpUseAntiFOMOPullback   = true;                  // Filter Anti-Pucuk/Anti-Dasar Pullback M1
-input double              InpMaxRSI_Buy_M1         = 68.0;                  // Maksimal RSI M1 untuk BUY (Anti-Overbought)
-input double              InpMinRSI_Sell_M1        = 32.0;                  // Minimal RSI M1 untuk SELL (Anti-Oversold)
-input int                 InpMinLayerDistancePts   = 40;                    // Jarak Minimal Antar Layer (Points, 40 pts = 4 pips)
-
-input group "=== 5. MONEY & RISK MANAGEMENT ==="
+input group "=== 4. MONEY & RISK MANAGEMENT ==="
 input ENUM_LOT_TYPE       InpLotType               = LOT_PER_BALANCE;       // Mode Lot Sizing
 input double              InpFixedLot              = 0.01;                  // Base Lot per Kelipatan
 input double              InpBalanceStep           = 500.0;                 // Saldo per Kelipatan Lot ($500 = 0.01 Lot)
 input double              InpRiskPercent           = 1.0;                   // Risk % per Trade
-input int                 InpStopLossPoints        = 150;                   // Stop Loss (Points, 150 pts = 15 pips)
-input int                 InpTakeProfitPoints      = 300;                   // Take Profit (Points, 300 pts = 30 pips)
-input int                 InpMaxSpreadPoints       = 75;                    // Max Spread Filter (Points)
+input int                 InpStopLossPoints        = 120;                   // Stop Loss (Points, 120 pts = 12 pips)
+input int                 InpTakeProfitPoints      = 200;                   // Take Profit (Points, 200 pts = 20 pips)
+input int                 InpMaxSpreadPoints       = 80;                    // Max Spread Filter (Points)
 input int                 InpMaxOpenPositions      = 7;                     // Max Posisi Scalping Aktif (Max 7 Entry)
 
-input group "=== 6. BREAK-EVEN & TRAILING STOP ==="
-input bool                InpUseBreakEven          = true;                  // Aktifkan Break-Even (BE)
-input int                 InpBETriggerPoints       = 100;                   // Trigger BE (Points Profit, 100 pts = 10 pips)
-input int                 InpBEProfitPoints        = 20;                    // Kunci Profit BE (Points, 20 pts = 2 pips)
-input bool                InpUseTrailingStop       = true;                  // Aktifkan Trailing Stop
-input int                 InpTrailingStartPoints   = 120;                   // Trailing Start (Points Profit, 120 pts = 12 pips)
-input int                 InpTrailingDistance      = 80;                    // Jarak Trailing Stop (Points, 80 pts = 8 pips)
-input int                 InpTrailingStep          = 20;                    // Step Pergeseran Trailing (Points)
+input group "=== 5. FAST BREAK-EVEN & AGGRESSIVE TRAILING ==="
+input bool                InpUseBreakEven          = true;                  // Aktifkan Break-Even Cepat
+input int                 InpBETriggerPoints       = 80;                    // Trigger BE (Points Profit, 80 pts = 8 pips)
+input int                 InpBEProfitPoints        = 15;                    // Kunci Profit BE (Points, 15 pts = 1.5 pips)
+input bool                InpUseTrailingStop       = true;                  // Aktifkan Trailing Stop Cepat
+input int                 InpTrailingStartPoints   = 100;                   // Trailing Start (Points Profit, 100 pts = 10 pips)
+input int                 InpTrailingDistance      = 60;                    // Jarak Trailing Stop (Points, 60 pts = 6 pips)
+input int                 InpTrailingStep          = 15;                    // Step Pergeseran Trailing (Points)
 
-input group "=== 7. DAILY TARGET & MAX LOSS GUARD (% WALLET) ==="
+input group "=== 6. DAILY TARGET & MAX LOSS GUARD (% WALLET) ==="
 input bool                InpUseDailyGuard         = true;                  // Aktifkan Pengaman Target Harian
 input double              InpDailyTargetPercent    = 15.0;                  // Target Profit Harian (15% dari Total Wallet)
 input double              InpDailyMaxLossPercent   = 7.0;                   // Batas Rem Rugi Harian (7% dari Total Wallet)
 
-input group "=== 8. AI FEATURE INDICATORS (M15 & M1) ==="
-input int                 InpADX_Period_M15        = 14;                    // M15 ADX Period
-input int                 InpEMA_Fast_M15          = 20;                    // M15 Fast EMA Period
-input int                 InpEMA_Slow_M15          = 50;                    // M15 Slow EMA Period
-input int                 InpBB_Period_M15         = 20;                    // M15 Bollinger Bands Period
-input double              InpBB_Dev_M15            = 2.0;                   // M15 BB Deviation
-input int                 InpEMA_M1                = 13;                    // M1 Fast EMA Period
-input int                 InpRSI_Period_M1         = 14;                    // M1 RSI Period
+input group "=== 7. M1 INDICATOR PARAMETERS (HYPER RESPONSIVE) ==="
+input int                 InpEMA_Fast_M1           = 5;                     // M1 Ultra-Fast EMA Period
+input int                 InpEMA_Slow_M1           = 13;                    // M1 Momentum EMA Period
+input int                 InpStoch_K               = 5;                     // Fast Stochastic %K
+input int                 InpStoch_D               = 3;                     // Fast Stochastic %D
+input int                 InpStoch_Slowing         = 3;                     // Fast Stochastic Slowing
 input int                 InpBB_Period_M1          = 20;                    // M1 Bollinger Bands Period
 input double              InpBB_Dev_M1             = 2.0;                   // M1 BB Deviation
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "3.55";
-double                    g_confidence_thresh      = 0.60;
+string                    g_current_version        = "4.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
-int                       g_sl_points              = 150;
-int                       g_tp_points              = 300;
-int                       g_max_spread             = 75;
+int                       g_sl_points              = 120;
+int                       g_tp_points              = 200;
+int                       g_max_spread             = 80;
 int                       g_max_open_pos           = 7;
-int                       g_min_layer_dist         = 40;
+int                       g_min_layer_dist         = 30;
 bool                      g_use_trailing           = true;
-int                       g_trailing_start         = 120;
-int                       g_trailing_dist          = 80;
-int                       g_trailing_step          = 20;
+int                       g_trailing_start         = 100;
+int                       g_trailing_dist          = 60;
+int                       g_trailing_step          = 15;
 bool                      g_use_daily_guard        = true;
 double                    g_daily_target_pct       = 15.0;
 double                    g_daily_max_loss_pct     = 7.0;
@@ -127,18 +111,12 @@ CPositionInfo             m_position;
 CSymbolInfo               m_symbol;
 CAccountInfo              m_account;
 
-int handle_adx_m15   = INVALID_HANDLE;
-int handle_emaF_m15  = INVALID_HANDLE;
-int handle_emaS_m15  = INVALID_HANDLE;
-int handle_bb_m15    = INVALID_HANDLE;
-int handle_ema_m1    = INVALID_HANDLE;
-int handle_rsi_m1    = INVALID_HANDLE;
+int handle_ema5_m1   = INVALID_HANDLE;
+int handle_ema13_m1  = INVALID_HANDLE;
+int handle_stoch_m1  = INVALID_HANDLE;
 int handle_bb_m1     = INVALID_HANDLE;
 
-long onnx_handle     = INVALID_HANDLE;
-bool onnx_loaded     = false;
-
-datetime last_trade_bar_time = 0;
+datetime last_trade_time = 0;
 datetime m_last_cloud_sync_time = 0;
 
 STrackedPos g_tracked_positions[];
@@ -198,7 +176,7 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
    string content_header = "";
    if(is_critical && InpDiscordMention != "")
    {
-      content_header = "\"content\": \"🚨 " + InpDiscordMention + " — **[AI SCALPING ALERT]**\", ";
+      content_header = "\"content\": \"🚨 " + InpDiscordMention + " — **[HYPER-SCALPER ALERT]**\", ";
    }
 
    string payload = "{" + content_header +
@@ -208,7 +186,7 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
                     "\"description\": \"" + description + "\"," +
                     "\"color\": " + IntegerToString(color_hex) + "," +
                     "\"fields\": [" + fields_json + "]," +
-                    "\"footer\": {\"text\": \"XAUUSD AI-Brain Sentinel MT5 v" + g_current_version + " • " + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
+                    "\"footer\": {\"text\": \"XAUUSD Hyper-Scalper Sentinel MT5 v" + g_current_version + " • " + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
                     "}]}";
 
    char post_data[];
@@ -246,7 +224,6 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
       {
          bool is_new_version = (cloud_version != g_current_version);
          g_current_version    = cloud_version;
-         g_confidence_thresh  = ExtractJsonNumber(json, "ai_confidence_threshold", InpAIConfidenceThreshold);
          g_balance_step       = ExtractJsonNumber(json, "balance_per_step", InpBalanceStep);
          g_lot_step           = ExtractJsonNumber(json, "lot_per_step", InpFixedLot);
          g_sl_points          = (int)ExtractJsonNumber(json, "stop_loss_points", InpStopLossPoints);
@@ -265,14 +242,14 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
             double target_usd = cur_bal * (g_daily_target_pct / 100.0);
             double loss_usd = cur_bal * (g_daily_max_loss_pct / 100.0);
 
-            string update_fields = "{\"name\": \"🧠 Versi AI-Brain\", \"value\": \"`v" + g_current_version + " (Institusional Tagged)`\", \"inline\": true}," +
+            string update_fields = "{\"name\": \"⚡ Hyper-Scalper Engine\", \"value\": \"`v" + g_current_version + " (Pure M1 Micro-Action)`\", \"inline\": true}," +
                                    "{\"name\": \"🎯 Target Harian (15%)\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (" + DoubleToString(g_daily_target_pct, 0) + "% Wallet)`\", \"inline\": true}," +
                                    "{\"name\": \"🛡️ Max Loss Harian (7%)\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (" + DoubleToString(g_daily_max_loss_pct, 0) + "% Wallet)`\", \"inline\": true}," +
                                    "{\"name\": \"⚡ Smart Layering\", \"value\": \"`Max " + IntegerToString(g_max_open_pos) + " Posisi (Min " + IntegerToString(g_min_layer_dist / 10) + " Pips)`\", \"inline\": true}," +
                                    "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot`\", \"inline\": true}";
             
-            SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (AI-BRAIN v" + g_current_version + ")!", 
-                             "Pembaruan versi brain berhasil disinkronkan ke seluruh sistem notifikasi webhook!", 
+            SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (HYPER-SCALPER v" + g_current_version + ")!", 
+                             "Logika Hyper-Fast M1 Price Action & Momentum Sniper resmi disinkronkan!", 
                              0x9B59B6, update_fields, false);
          }
       }
@@ -346,33 +323,32 @@ double CalculateLotSize(double sl_points)
 }
 
 //+------------------------------------------------------------------+
-//| FORMAT NOTIFIKASI OPEN TRADE DISCORD (DENGAN VERSI BRAIN)        |
+//| FORMAT NOTIFIKASI OPEN TRADE DISCORD                             |
 //+------------------------------------------------------------------+
-void NotifyAITrade(string type, double price, double lot_used, double sl, double tp, ulong ticket, float confidence, int spread_used, int current_layers, string setup_reason)
+void NotifyAITrade(string type, double price, double lot_used, double sl, double tp, ulong ticket, string trigger_source, int spread_used, int current_layers)
 {
    int embed_color = (type == "BUY") ? 0x2ECC71 : 0xE74C3C;
    string emoji = (type == "BUY") ? "🟢" : "🔴";
 
-   string fields = "{\"name\": \"🏷️ Tipe Order AI\", \"value\": \"" + emoji + " **" + type + " (Layer " + IntegerToString(current_layers) + "/" + IntegerToString(g_max_open_pos) + ")**\", \"inline\": true}," +
-                   "{\"name\": \"🧠 Versi AI-Brain\", \"value\": \"`v" + g_current_version + " (Institusional)` 🔥\", \"inline\": true}," +
-                   "{\"name\": \"🎯 AI Confidence\", \"value\": \"**" + DoubleToString(confidence * 100.0f, 1) + "%**\", \"inline\": true}," +
-                   "{\"name\": \"🎯 Setup Alasan\", \"value\": \"`" + setup_reason + "`\", \"inline\": true}," +
+   string fields = "{\"name\": \"🏷️ Tipe Order\", \"value\": \"" + emoji + " **" + type + " (Layer " + IntegerToString(current_layers) + "/" + IntegerToString(g_max_open_pos) + ")**\", \"inline\": true}," +
+                   "{\"name\": \"⚡ Pemicu Sniper\", \"value\": \"`" + trigger_source + "`\", \"inline\": true}," +
+                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Hyper-Scalper)`\", \"inline\": true}," +
                    "{\"name\": \"📊 Simbol & Lot\", \"value\": \"`" + _Symbol + "` (**" + DoubleToString(lot_used, 2) + " Lot**)\", \"inline\": true}," +
-                   "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(price, _Digits) + "`\", \"inline\": true}," +
+                   "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(price, _Digits) + "` (Best Wick Entry)\", \"inline\": true}," +
                    "{\"name\": \"🛡️ Stop Loss\", \"value\": \"`" + DoubleToString(sl, _Digits) + "` (-" + IntegerToString(g_sl_points / 10) + " Pips)\", \"inline\": true}," +
                    "{\"name\": \"🎯 Take Profit\", \"value\": \"`" + DoubleToString(tp, _Digits) + "` (+" + IntegerToString(g_tp_points / 10) + " Pips)\", \"inline\": true}," +
-                   "{\"name\": \"🛡️ Spread Saat Entry\", \"value\": \"`" + IntegerToString(spread_used) + " Points` (Aman)\", \"inline\": true}," +
-                   "{\"name\": \"💰 Saldo Akun\", \"value\": \"`$" + DoubleToString(m_account.Balance(), 2) + "` (Auto-Lot $500 = 0.01)\", \"inline\": true}," +
+                   "{\"name\": \"🛡️ Spread Saat Entry\", \"value\": \"`" + IntegerToString(spread_used) + " Points` (Cepat)\", \"inline\": true}," +
+                   "{\"name\": \"💰 Saldo Akun\", \"value\": \"`$" + DoubleToString(m_account.Balance(), 2) + "` ($500 = 0.01)\", \"inline\": true}," +
                    "{\"name\": \"🎫 Ticket ID\", \"value\": \"`#" + IntegerToString(ticket) + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("🧠 AI INSTITUTIONAL SCALPER (" + type + " - Layer " + IntegerToString(current_layers) + ")", 
-                    "Sinyal Valid: Konfluensi Tren Makro M15 + Anti-FOMO Pullback Diskon terkonfirmasi.", 
+   SendDiscordEmbed("⚡ HYPER-FAST M1 SNIPER (" + type + " - Layer " + IntegerToString(current_layers) + ")", 
+                    "Eksekusi Instan M1: Terdeteksi peluang cepat Price Action / Momentum Breakout.", 
                     embed_color, 
                     fields, false);
 }
 
 //+------------------------------------------------------------------+
-//| FORMAT NOTIFIKASI CLOSE TRADE DISCORD (DENGAN VERSI BRAIN)       |
+//| FORMAT NOTIFIKASI CLOSE TRADE DISCORD                            |
 //+------------------------------------------------------------------+
 void NotifyCloseTrade(string type, double close_price, double profit, ulong deal_ticket, double volume)
 {
@@ -392,7 +368,7 @@ void NotifyCloseTrade(string type, double close_price, double profit, ulong deal
    double daily_total_pl = GetDailyProfitLoss();
 
    string fields = "{\"name\": \"📊 Hasil Transaksi\", \"value\": \"" + result_emoji + "\", \"inline\": true}," +
-                   "{\"name\": \"🧠 Versi AI-Brain\", \"value\": \"`v" + g_current_version + " (Institusional)`\", \"inline\": true}," +
+                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Hyper-Scalper)`\", \"inline\": true}," +
                    "{\"name\": \"💵 Realized PnL\", \"value\": \"**" + pnl_sign + DoubleToString(abs_profit, 2) + "**\", \"inline\": true}," +
                    "{\"name\": \"🏦 Saldo Akun Terkini\", \"value\": \"**`$" + DoubleToString(current_balance, 2) + "`**\", \"inline\": true}," +
                    "{\"name\": \"🏷️ Posisi Ditutup\", \"value\": \"`" + type + " " + _Symbol + " (" + DoubleToString(volume, 2) + " Lot)`\", \"inline\": true}," +
@@ -407,7 +383,7 @@ void NotifyCloseTrade(string type, double close_price, double profit, ulong deal
 }
 
 //+------------------------------------------------------------------+
-//| EVENT ON TRADE TRANSACTION (DETEKSI CLOSE ORDER INSTAN)          |
+//| EVENT ON TRADE TRANSACTION                                       |
 //+------------------------------------------------------------------+
 void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest &request, const MqlTradeResult &result)
 {
@@ -520,7 +496,7 @@ int OnInit()
    StringToUpper(sym);
    if(StringFind(sym, "XAU") < 0 && StringFind(sym, "GOLD") < 0)
    {
-      Alert("PERINGATAN: EA 'XAUUSD AI Brain' hanya boleh dipasang pada chart XAUUSD / GOLD!");
+      Alert("PERINGATAN: EA 'XAUUSD Hyper Scalper' hanya boleh dipasang pada chart XAUUSD / GOLD!");
       return INIT_FAILED;
    }
 
@@ -532,7 +508,6 @@ int OnInit()
    m_trade.SetTypeFillingBySymbol(_Symbol);
    m_trade.SetDeviationInPoints(30);
 
-   g_confidence_thresh  = InpAIConfidenceThreshold;
    g_balance_step       = InpBalanceStep;
    g_lot_step           = InpFixedLot;
    g_sl_points          = InpStopLossPoints;
@@ -551,39 +526,17 @@ int OnInit()
    FetchAndApplyCloudConfig(true);
    m_last_cloud_sync_time = TimeCurrent();
 
-   // Handles Indikator M15
-   handle_adx_m15  = iADX(_Symbol, PERIOD_M15, InpADX_Period_M15);
-   handle_emaF_m15 = iMA(_Symbol, PERIOD_M15, InpEMA_Fast_M15, 0, MODE_EMA, PRICE_CLOSE);
-   handle_emaS_m15 = iMA(_Symbol, PERIOD_M15, InpEMA_Slow_M15, 0, MODE_EMA, PRICE_CLOSE);
-   handle_bb_m15   = iBands(_Symbol, PERIOD_M15, InpBB_Period_M15, 0, InpBB_Dev_M15, PRICE_CLOSE);
-
-   // Handles Indikator M1
-   handle_ema_m1   = iMA(_Symbol, PERIOD_M1, InpEMA_M1, 0, MODE_EMA, PRICE_CLOSE);
-   handle_rsi_m1   = iRSI(_Symbol, PERIOD_M1, InpRSI_Period_M1, PRICE_CLOSE);
+   // Inisialisasi Indikator M1 Ultra-Fast
+   handle_ema5_m1  = iMA(_Symbol, PERIOD_M1, InpEMA_Fast_M1, 0, MODE_EMA, PRICE_CLOSE);
+   handle_ema13_m1 = iMA(_Symbol, PERIOD_M1, InpEMA_Slow_M1, 0, MODE_EMA, PRICE_CLOSE);
+   handle_stoch_m1 = iStochastic(_Symbol, PERIOD_M1, InpStoch_K, InpStoch_D, InpStoch_Slowing, MODE_SMA, STO_LOWHIGH);
    handle_bb_m1    = iBands(_Symbol, PERIOD_M1, InpBB_Period_M1, 0, InpBB_Dev_M1, PRICE_CLOSE);
 
-   if(handle_adx_m15 == INVALID_HANDLE || handle_emaF_m15 == INVALID_HANDLE ||
-      handle_emaS_m15 == INVALID_HANDLE || handle_bb_m15 == INVALID_HANDLE ||
-      handle_ema_m1 == INVALID_HANDLE || handle_rsi_m1 == INVALID_HANDLE ||
-      handle_bb_m1 == INVALID_HANDLE)
+   if(handle_ema5_m1 == INVALID_HANDLE || handle_ema13_m1 == INVALID_HANDLE ||
+      handle_stoch_m1 == INVALID_HANDLE || handle_bb_m1 == INVALID_HANDLE)
    {
-      Print("[ERROR] Gagal inisialisasi indikator!");
+      Print("[ERROR] Gagal inisialisasi indikator M1!");
       return INIT_FAILED;
-   }
-
-   // ONNX Initialization
-   if(InpAIMode == AI_ONNX_MODEL_FILE)
-   {
-      onnx_handle = OnnxCreate(InpONNXFileName, ONNX_DEFAULT);
-      if(onnx_handle != INVALID_HANDLE)
-      {
-         const long in_shape[]  = {1, 7};
-         const long out_shape[] = {1, 3};
-         if(OnnxSetInputShape(onnx_handle, 0, in_shape) && OnnxSetOutputShape(onnx_handle, 0, out_shape))
-         {
-            onnx_loaded = true;
-         }
-      }
    }
 
    double current_bal = m_account.Balance();
@@ -591,15 +544,15 @@ int OnInit()
    double loss_usd = current_bal * (g_daily_max_loss_pct / 100.0);
    double current_lot = CalculateLotSize(g_sl_points);
 
-   string startup_fields = "{\"name\": \"🧠 Versi AI-Brain\", \"value\": \"`v" + g_current_version + " (Institusional Tagged)`\", \"inline\": true}," +
+   string startup_fields = "{\"name\": \"⚡ Engine Scalper\", \"value\": \"`Hyper-Fast M1 Price Action (v4.00)`\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target Cuan Harian\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (15% Wallet)`\", \"inline\": true}," +
                            "{\"name\": \"🛡️ Max Loss Harian\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (7% Wallet)`\", \"inline\": true}," +
                            "{\"name\": \"⚡ Smart Layering\", \"value\": \"`Max " + IntegerToString(g_max_open_pos) + " Entry (Min " + IntegerToString(g_min_layer_dist / 10) + " Pips)`\", \"inline\": true}," +
                            "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Lot: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target SL / TP\", \"value\": \"`SL: " + IntegerToString(g_sl_points / 10) + " Pips | TP: " + IntegerToString(g_tp_points / 10) + " Pips`\", \"inline\": true}";
 
-   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif (v" + g_current_version + " Institusional)!", 
-                    "Expert Advisor siap berburu scalping lengkap dengan identitas versi AI-Brain pada setiap laporan webhook.", 
+   SendDiscordEmbed("⚡ XAUUSD Hyper-Scalper Aktif (v4.00 Pure M1)! 🚀", 
+                    "Mesin Hyper-Fast Scalping aktif: M1 Wick Rejection Sniper + EMA 5/13 Momentum Cross siap berburu!", 
                     0x3498DB, startup_fields, false);
 
    return INIT_SUCCEEDED;
@@ -610,187 +563,18 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
-   IndicatorRelease(handle_adx_m15);
-   IndicatorRelease(handle_emaF_m15);
-   IndicatorRelease(handle_emaS_m15);
-   IndicatorRelease(handle_bb_m15);
-   IndicatorRelease(handle_ema_m1);
-   IndicatorRelease(handle_rsi_m1);
+   IndicatorRelease(handle_ema5_m1);
+   IndicatorRelease(handle_ema13_m1);
+   IndicatorRelease(handle_stoch_m1);
    IndicatorRelease(handle_bb_m1);
-
-   if(onnx_handle != INVALID_HANDLE)
-   {
-      OnnxRelease(onnx_handle);
-      onnx_handle = INVALID_HANDLE;
-   }
-
    Comment("");
 }
 
 //+------------------------------------------------------------------+
-//| EKSTRAKSI FITUR AI (FEATURE ENGINEERING 7 FEATURES)              |
+//| ON-CHART DASHBOARD HYPER-SCALPER                                 |
 //+------------------------------------------------------------------+
-bool ExtractAIFeatures(float &features[], double &raw_adx_m15, double &raw_emaF_m15, double &raw_emaS_m15, double &raw_rsi_m1, double &raw_ema_m1)
+void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_d, double bb_up, double bb_low, string signal_status)
 {
-   double adx_m15[];
-   double emaF_m15[], emaS_m15[];
-   double bb_upper_m15[], bb_lower_m15[], bb_mid_m15[];
-   double ema_m1[];
-   double rsi_m1[];
-   double bb_upper_m1[], bb_lower_m1[];
-   MqlRates rates_m15[], rates_m1[];
-
-   ArraySetAsSeries(adx_m15, true);
-   ArraySetAsSeries(emaF_m15, true);
-   ArraySetAsSeries(emaS_m15, true);
-   ArraySetAsSeries(bb_upper_m15, true);
-   ArraySetAsSeries(bb_lower_m15, true);
-   ArraySetAsSeries(bb_mid_m15, true);
-   ArraySetAsSeries(ema_m1, true);
-   ArraySetAsSeries(rsi_m1, true);
-   ArraySetAsSeries(bb_upper_m1, true);
-   ArraySetAsSeries(bb_lower_m1, true);
-   ArraySetAsSeries(rates_m15, true);
-   ArraySetAsSeries(rates_m1, true);
-
-   if(CopyBuffer(handle_adx_m15, 0, 1, 1, adx_m15) <= 0) return false;
-   if(CopyBuffer(handle_emaF_m15, 0, 1, 1, emaF_m15) <= 0) return false;
-   if(CopyBuffer(handle_emaS_m15, 0, 1, 1, emaS_m15) <= 0) return false;
-   if(CopyBuffer(handle_bb_m15, 1, 1, 1, bb_upper_m15) <= 0) return false;
-   if(CopyBuffer(handle_bb_m15, 2, 1, 1, bb_lower_m15) <= 0) return false;
-   if(CopyBuffer(handle_bb_m15, 0, 1, 1, bb_mid_m15) <= 0) return false;
-
-   if(CopyBuffer(handle_ema_m1, 0, 1, 1, ema_m1) <= 0) return false;
-   if(CopyBuffer(handle_rsi_m1, 0, 1, 1, rsi_m1) <= 0) return false;
-   if(CopyBuffer(handle_bb_m1, 1, 1, 1, bb_upper_m1) <= 0) return false;
-   if(CopyBuffer(handle_bb_m1, 2, 1, 1, bb_lower_m1) <= 0) return false;
-
-   if(CopyRates(_Symbol, PERIOD_M15, 1, 1, rates_m15) <= 0) return false;
-   if(CopyRates(_Symbol, PERIOD_M1, 1, 1, rates_m1) <= 0) return false;
-
-   double point = m_symbol.Point();
-   double close_m15 = rates_m15[0].close;
-   double close_m1  = rates_m1[0].close;
-
-   raw_adx_m15  = adx_m15[0];
-   raw_emaF_m15 = emaF_m15[0];
-   raw_emaS_m15 = emaS_m15[0];
-   raw_rsi_m1   = rsi_m1[0];
-   raw_ema_m1   = ema_m1[0];
-
-   features[0] = (float)MathMin(MathMax(adx_m15[0] / 100.0, 0.0), 1.0);
-   features[1] = (float)((emaF_m15[0] - emaS_m15[0]) / MathMax(close_m15, 1.0) * 100.0);
-   features[2] = (float)((bb_upper_m15[0] - bb_lower_m15[0]) / MathMax(bb_mid_m15[0], 1.0) * 100.0);
-   features[3] = (float)MathMin(MathMax(rsi_m1[0] / 100.0, 0.0), 1.0);
-   features[4] = (float)((close_m1 - ema_m1[0]) / MathMax(point * 100.0, 0.01));
-   double bb_width_m1 = bb_upper_m1[0] - bb_lower_m1[0];
-   features[5] = (float)((bb_width_m1 > 0.0) ? MathMin(MathMax((close_m1 - bb_lower_m1[0]) / bb_width_m1, 0.0), 1.0) : 0.5);
-   features[6] = (float)((double)m_symbol.Spread() / (double)MathMax(g_max_spread, 1));
-
-   return true;
-}
-
-//+------------------------------------------------------------------+
-//| DEEP NEURAL NETWORK AI INFERENCE (MLP)                           |
-//+------------------------------------------------------------------+
-void RunAIBrain(const float &features[], float &prob_neutral, float &prob_buy, float &prob_sell)
-{
-   if(InpAIMode == AI_ONNX_MODEL_FILE && onnx_loaded)
-   {
-      float in_vector[7];
-      for(int i = 0; i < 7; i++) in_vector[i] = features[i];
-      float out_probs[3];
-      if(OnnxRun(onnx_handle, ONNX_NO_CONVERSION, in_vector, out_probs))
-      {
-         prob_neutral = out_probs[0];
-         prob_buy     = out_probs[1];
-         prob_sell    = out_probs[2];
-         return;
-      }
-   }
-
-   // Built-in Deep Neural Network (MLP 7 -> 8 -> 6 -> 3)
-   float h1[8];
-   float W1[7][8] = {
-      { 0.55f, -0.40f,  0.60f, -0.30f,  0.15f,  0.45f, -0.45f,  0.30f},
-      { 1.50f, -1.45f,  1.10f, -1.05f,  0.50f,  1.20f, -1.15f,  0.80f},
-      { 0.35f,  0.40f, -0.30f, -0.35f,  0.60f,  0.25f,  0.20f, -0.15f},
-      { 0.95f, -1.00f,  0.75f, -0.80f, -0.40f,  0.85f, -0.90f,  0.60f},
-      { 1.10f, -1.10f,  0.85f, -0.85f,  0.25f,  0.95f, -1.00f,  0.55f},
-      { 0.85f, -0.90f,  0.65f, -0.70f, -0.50f,  0.75f, -0.75f,  0.45f},
-      {-0.60f, -0.60f, -0.50f, -0.50f,  0.10f, -0.40f, -0.40f, -0.30f}
-   };
-   float B1[8] = {0.1f, 0.1f, -0.05f, -0.05f, 0.0f, 0.05f, 0.05f, 0.0f};
-
-   for(int j = 0; j < 8; j++)
-   {
-      float sum = B1[j];
-      for(int i = 0; i < 7; i++) sum += features[i] * W1[i][j];
-      h1[j] = (sum > 0.0f) ? sum : (0.1f * sum);
-   }
-
-   float h2[6];
-   float W2[8][6] = {
-      { 0.75f, -0.65f,  0.50f, -0.40f,  0.15f,  0.30f},
-      {-0.65f,  0.75f, -0.40f,  0.50f,  0.15f, -0.30f},
-      { 0.40f,  0.40f, -0.25f, -0.25f,  0.50f,  0.15f},
-      { 0.85f, -0.85f,  0.65f, -0.65f, -0.25f,  0.40f},
-      { 0.65f, -0.65f,  0.50f, -0.50f,  0.00f,  0.30f},
-      { 0.50f, -0.50f,  0.40f, -0.40f, -0.15f,  0.15f},
-      {-0.50f,  0.50f, -0.40f,  0.40f,  0.15f, -0.15f},
-      { 0.40f, -0.40f,  0.30f, -0.30f,  0.00f,  0.15f}
-   };
-   float B2[6] = {0.05f, 0.05f, 0.0f, 0.0f, 0.05f, 0.0f};
-
-   for(int k = 0; k < 6; k++)
-   {
-      float sum = B2[k];
-      for(int j = 0; j < 8; j++) sum += h1[j] * W2[j][k];
-      h2[k] = (sum > 0.0f) ? sum : (0.1f * sum);
-   }
-
-   float out_raw[3];
-   float W3[6][3] = {
-      {-0.30f,  1.35f, -1.25f},
-      {-0.30f, -1.25f,  1.35f},
-      { 0.95f, -0.50f, -0.50f},
-      {-0.40f,  1.45f, -1.35f},
-      { 0.60f, -0.25f, -0.25f},
-      {-0.15f,  0.95f, -0.85f}
-   };
-   float B3[3] = {0.25f, -0.12f, -0.12f};
-
-   float max_val = -1e9f;
-   for(int c = 0; c < 3; c++)
-   {
-      out_raw[c] = B3[c];
-      for(int k = 0; k < 6; k++) out_raw[c] += h2[k] * W3[k][c];
-      if(out_raw[c] > max_val) max_val = out_raw[c];
-   }
-
-   float sum_exp = 0.0f;
-   float exp_val[3];
-   for(int c = 0; c < 3; c++)
-   {
-      exp_val[c] = (float)MathExp(out_raw[c] - max_val);
-      sum_exp += exp_val[c];
-   }
-
-   prob_neutral = exp_val[0] / sum_exp;
-   prob_buy     = exp_val[1] / sum_exp;
-   prob_sell    = exp_val[2] / sum_exp;
-}
-
-//+------------------------------------------------------------------+
-//| ON-CHART AI LIVE DASHBOARD                                       |
-//+------------------------------------------------------------------+
-void DisplayAIDashboard(const float &features[], float p_neu, float p_buy, float p_sell, string trend_m15, string pullback_status)
-{
-   string ai_action = "WAIT / HUNTING...";
-   if(p_buy >= (float)g_confidence_thresh && p_buy > p_sell) ai_action = StringFormat("BUY SIGNAL (%.1f%% Conf) 🔥", p_buy * 100.0f);
-   else if(p_sell >= (float)g_confidence_thresh && p_sell > p_buy) ai_action = StringFormat("SELL SIGNAL (%.1f%% Conf) 🔥", p_sell * 100.0f);
-
-   string engine_name = (InpAIMode == AI_ONNX_MODEL_FILE && onnx_loaded) ? "ONNX Engine (xauusd_m1_brain.onnx)" : "Deep Neural Network Institusional (MLP)";
    long current_spread = m_symbol.Spread();
    string spread_status = (current_spread <= g_max_spread) ? "[AMAN ✅]" : "[TERLALU TINGGI 🚫]";
    
@@ -812,33 +596,29 @@ void DisplayAIDashboard(const float &features[], float p_neu, float p_buy, float
    }
 
    string info = "=========================================================\n";
-   info += "       🧠 XAUUSD AI-BRAIN DUAL-REGIME SCALPER v" + g_current_version + "    \n";
+   info += "       ⚡ XAUUSD HYPER-FAST M1 SCALPER v" + g_current_version + "    \n";
    info += "=========================================================\n";
    info += StringFormat(" 💰 Balance / Equity : $%.2f / $%.2f\n", m_account.Balance(), m_account.Equity());
    info += StringFormat(" 📈 Auto-Lot Mode    : %.2f Lot ($%.0f = %.2f Lot)\n", lot, g_balance_step, g_lot_step);
    info += StringFormat(" ⚡ Posisi Aktif     : %d / %d Posisi (Min Jarak %d Pts)\n", active_orders, g_max_open_pos, g_min_layer_dist);
-   info += StringFormat(" 📊 Tren Makro M15   : %s\n", trend_m15);
-   info += StringFormat(" 🎯 Filter Anti-FOMO : %s\n", pullback_status);
    info += "---------------------------------------------------------\n";
-   info += " [AI REAL-TIME PROBABILITY METER]\n";
-   info += StringFormat("  🟢 BUY  Probability : %5.1f %%  %s\n", p_buy * 100.0f, (p_buy >= (float)g_confidence_thresh) ? "🔥 [VALID]" : "");
-   info += StringFormat("  🔴 SELL Probability : %5.1f %%  %s\n", p_sell * 100.0f, (p_sell >= (float)g_confidence_thresh) ? "🔥 [VALID]" : "");
-   info += StringFormat("  ⚪ NEUTRAL / WAIT   : %5.1f %%\n", p_neu * 100.0f);
-   info += StringFormat("  🎯 Status Keputusan : %s\n", ai_action);
+   info += " [M1 REAL-TIME MICRO-INDICATORS]\n";
+   info += StringFormat("  📈 M1 Momentum     : EMA5 (%.2f) vs EMA13 (%.2f) -> %s\n", ema5, ema13, (ema5 > ema13) ? "BULLISH 🟢" : "BEARISH 🔴");
+   info += StringFormat("  ⚡ Fast Stoch (5,3): K=%.1f | D=%.1f (%s)\n", stoch_k, stoch_d, (stoch_k < 25) ? "OVERSOLD 🟢" : (stoch_k > 75) ? "OVERBOUGHT 🔴" : "NEUTRAL ⚪");
+   info += StringFormat("  🎯 Status Radar    : %s\n", signal_status);
    info += "---------------------------------------------------------\n";
    info += StringFormat(" 🛡️ Spread Gold      : %d pts (Max: %d pts) %s\n", current_spread, g_max_spread, spread_status);
    info += StringFormat(" 🏆 Profit Hari Ini  : %s$%.2f\n", (daily_pl >= 0) ? "+" : "-", MathAbs(daily_pl));
    info += StringFormat(" 🎯 Target 15%% Cuan  : +$%.2f (Kunci Profit)\n", dynamic_target_usd);
    info += StringFormat(" 🛡️ Max Loss 7%% Rugi : -$%.2f (Rem Pengaman)\n", dynamic_max_loss_usd);
-   info += StringFormat(" ☁️ OTA Cloud Status : AKTIF (Auto-Sync tiap %d Menit)\n", InpSyncIntervalMin);
-   info += " 📡 Discord Webhook  : TERHUBUNG (Open & Close Notifications) ✅\n";
+   info += " 📡 Discord Webhook  : TERHUBUNG (Laporan Instan Terkirim) ✅\n";
    info += "=========================================================\n";
 
    Comment(info);
 }
 
 //+------------------------------------------------------------------+
-//| MANAJEMEN POSISI: BREAK-EVEN & TRAILING STOP                     |
+//| MANAJEMEN POSISI: FAST BREAK-EVEN & TRAILING STOP                |
 //+------------------------------------------------------------------+
 void ManageOpenPositions()
 {
@@ -861,7 +641,7 @@ void ManageOpenPositions()
       {
          double profit_points = (current_bid - open_price) / point;
 
-         // Break-Even Lock (+2 pips saat profit +10 pips)
+         // Fast Break-Even (+1.5 pips saat profit +8 pips)
          if(InpUseBreakEven && profit_points >= InpBETriggerPoints)
          {
             double be_sl = m_symbol.NormalizePrice(open_price + InpBEProfitPoints * point);
@@ -885,7 +665,7 @@ void ManageOpenPositions()
       {
          double profit_points = (open_price - current_ask) / point;
 
-         // Break-Even Lock (+2 pips saat profit +10 pips)
+         // Fast Break-Even (+1.5 pips saat profit +8 pips)
          if(InpUseBreakEven && profit_points >= InpBETriggerPoints)
          {
             double be_sl = m_symbol.NormalizePrice(open_price - InpBEProfitPoints * point);
@@ -909,7 +689,7 @@ void ManageOpenPositions()
 }
 
 //+------------------------------------------------------------------+
-//| VALIDASI JARAK MINIMAL ANTAR LAYER (GRID SPACING)                |
+//| VALIDASI JARAK MINIMAL ANTAR LAYER                               |
 //+------------------------------------------------------------------+
 bool IsLayerDistanceValid(ENUM_ORDER_TYPE order_type, double entry_price)
 {
@@ -932,16 +712,16 @@ bool IsLayerDistanceValid(ENUM_ORDER_TYPE order_type, double entry_price)
 }
 
 //+------------------------------------------------------------------+
-//| BUKA POSISI ORDER AI INSTITUSIONAL                               |
+//| BUKA POSISI ORDER INSTAN                                         |
 //+------------------------------------------------------------------+
-void OpenAIOrder(ENUM_ORDER_TYPE order_type, float confidence, int current_active_count, string setup_reason)
+void ExecuteFastScalp(ENUM_ORDER_TYPE order_type, string trigger_source, int current_active_count)
 {
    double point = m_symbol.Point();
    double lot   = CalculateLotSize(g_sl_points);
    if(lot <= 0) return;
 
    int current_spread = (int)m_symbol.Spread();
-   string comment_label = StringFormat("%s_%.0f%%", InpTradeComment, confidence * 100.0f);
+   string comment_label = InpTradeComment;
 
    if(order_type == ORDER_TYPE_BUY)
    {
@@ -955,8 +735,9 @@ void OpenAIOrder(ENUM_ORDER_TYPE order_type, float confidence, int current_activ
 
       if(m_trade.Buy(lot, _Symbol, ask, sl, tp, comment_label))
       {
-         Print("🚀 [AI BUY EXECUTED - Layer ", current_active_count + 1, "] Conf: ", DoubleToString(confidence * 100.0f, 1), "% | Lot: ", lot, " | Price: ", ask);
-         NotifyAITrade("BUY", ask, lot, sl, tp, m_trade.ResultOrder(), confidence, current_spread, current_active_count + 1, setup_reason);
+         Print("🚀 [HYPER BUY EXECUTED - Layer ", current_active_count + 1, "] Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", ask);
+         NotifyAITrade("BUY", ask, lot, sl, tp, m_trade.ResultOrder(), trigger_source, current_spread, current_active_count + 1);
+         last_trade_time = TimeCurrent();
       }
    }
    else if(order_type == ORDER_TYPE_SELL)
@@ -971,14 +752,15 @@ void OpenAIOrder(ENUM_ORDER_TYPE order_type, float confidence, int current_activ
 
       if(m_trade.Sell(lot, _Symbol, bid, sl, tp, comment_label))
       {
-         Print("🚀 [AI SELL EXECUTED - Layer ", current_active_count + 1, "] Conf: ", DoubleToString(confidence * 100.0f, 1), "% | Lot: ", lot, " | Price: ", bid);
-         NotifyAITrade("SELL", bid, lot, sl, tp, m_trade.ResultOrder(), confidence, current_spread, current_active_count + 1, setup_reason);
+         Print("🚀 [HYPER SELL EXECUTED - Layer ", current_active_count + 1, "] Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", bid);
+         NotifyAITrade("SELL", bid, lot, sl, tp, m_trade.ResultOrder(), trigger_source, current_spread, current_active_count + 1);
+         last_trade_time = TimeCurrent();
       }
    }
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION                                                |
+//| ON TICK EXECUTION (HYPER-FAST M1 PRICE ACTION ENGINE)            |
 //+------------------------------------------------------------------+
 void OnTick()
 {
@@ -991,40 +773,109 @@ void OnTick()
       m_last_cloud_sync_time = TimeCurrent();
    }
 
-   // 2. Eksekusi Proteksi Posisi (Break-Even & Trailing Stop per tick)
+   // 2. Eksekusi Proteksi Posisi (Fast Break-Even & Trailing Stop per tick)
    ManageOpenPositions();
 
-   // 3. Double-Check Deteksi Posisi Tertutup (Jaminan 100% Notifikasi Close Discord Terkirim)
+   // 3. Double-Check Deteksi Posisi Tertutup
    CheckPositionClosures();
 
-   // 4. Ekstraksi Fitur AI Real-Time & Nilai Indikator Fisik
-   float features[7];
-   double raw_adx_m15 = 0, raw_emaF_m15 = 0, raw_emaS_m15 = 0, raw_rsi_m1 = 50.0, raw_ema_m1 = 0;
-   if(!ExtractAIFeatures(features, raw_adx_m15, raw_emaF_m15, raw_emaS_m15, raw_rsi_m1, raw_ema_m1)) return;
+   // 4. Ambil Data Candlestick M1 Terkini (Anatomi Price Action & Wick)
+   MqlRates rates_m1[];
+   ArraySetAsSeries(rates_m1, true);
+   if(CopyRates(_Symbol, PERIOD_M1, 0, 5, rates_m1) < 5) return;
 
-   // 5. Evaluasi Tren Makro M15
-   bool is_m15_bullish = (raw_emaF_m15 > raw_emaS_m15) && (raw_adx_m15 >= InpMinADXTrendM15);
-   bool is_m15_bearish = (raw_emaF_m15 < raw_emaS_m15) && (raw_adx_m15 >= InpMinADXTrendM15);
-   
-   string trend_m15_label = "SIDEWAYS / FLAT (Standby ⚪)";
-   if(is_m15_bullish) trend_m15_label = "BULLISH UPTREND 🟢 (ADX " + DoubleToString(raw_adx_m15, 1) + ")";
-   else if(is_m15_bearish) trend_m15_label = "BEARISH DOWNTREND 🔴 (ADX " + DoubleToString(raw_adx_m15, 1) + ")";
+   // 5. Ambil Buffer Indikator M1 Fast
+   double ema5_buf[], ema13_buf[], stoch_k_buf[], stoch_d_buf[], bb_up_buf[], bb_low_buf[], bb_mid_buf[];
+   ArraySetAsSeries(ema5_buf, true);
+   ArraySetAsSeries(ema13_buf, true);
+   ArraySetAsSeries(stoch_k_buf, true);
+   ArraySetAsSeries(stoch_d_buf, true);
+   ArraySetAsSeries(bb_up_buf, true);
+   ArraySetAsSeries(bb_low_buf, true);
+   ArraySetAsSeries(bb_mid_buf, true);
 
-   // 6. Evaluasi Anti-FOMO Pullback M1
-   double close_m1 = m_symbol.Bid();
-   double dist_to_ema13 = MathAbs(close_m1 - raw_ema_m1) / m_symbol.Point();
-   string pullback_label = "Pullback Sehat (RSI " + DoubleToString(raw_rsi_m1, 1) + " | Dist " + DoubleToString(dist_to_ema13, 0) + " pts)";
+   if(CopyBuffer(handle_ema5_m1, 0, 0, 3, ema5_buf) <= 0) return;
+   if(CopyBuffer(handle_ema13_m1, 0, 0, 3, ema13_buf) <= 0) return;
+   if(CopyBuffer(handle_stoch_m1, 0, 0, 3, stoch_k_buf) <= 0) return;
+   if(CopyBuffer(handle_stoch_m1, 1, 0, 3, stoch_d_buf) <= 0) return;
+   if(CopyBuffer(handle_bb_m1, 1, 0, 3, bb_up_buf) <= 0) return;
+   if(CopyBuffer(handle_bb_m1, 2, 0, 3, bb_low_buf) <= 0) return;
+   if(CopyBuffer(handle_bb_m1, 0, 0, 3, bb_mid_buf) <= 0) return;
 
-   // 7. Prediksi Keputusan oleh Otak AI
-   float prob_neutral = 0.0f;
-   float prob_buy     = 0.0f;
-   float prob_sell    = 0.0f;
-   RunAIBrain(features, prob_neutral, prob_buy, prob_sell);
+   double ema5_curr    = ema5_buf[0];
+   double ema13_curr   = ema13_buf[0];
+   double stoch_k      = stoch_k_buf[0];
+   double stoch_d      = stoch_d_buf[0];
+   double prev_stoch_k = stoch_k_buf[1];
+   double prev_stoch_d = stoch_d_buf[1];
+   double bb_up        = bb_up_buf[0];
+   double bb_low       = bb_low_buf[0];
 
-   // 8. Perbarui On-Chart Live Dashboard
-   DisplayAIDashboard(features, prob_neutral, prob_buy, prob_sell, trend_m15_label, pullback_label);
+   // 6. Analisis Anatomi Candlestick M1 Terakhir (Bar 1 yang baru saja tutup)
+   double bar1_open  = rates_m1[1].open;
+   double bar1_high  = rates_m1[1].high;
+   double bar1_low   = rates_m1[1].low;
+   double bar1_close = rates_m1[1].close;
+   double bar1_range = bar1_high - bar1_low;
 
-   // 9. Cek Proteksi Daily Profit Target (15%) & Max Loss (7%) dari Wallet
+   double lower_wick = MathMin(bar1_open, bar1_close) - bar1_low;
+   double upper_wick = bar1_high - MathMax(bar1_open, bar1_close);
+   double body_size  = MathAbs(bar1_close - bar1_open);
+
+   bool is_bullish_pinbar = (bar1_range > 0) && (lower_wick >= 0.45 * bar1_range) && (bar1_close > bar1_low);
+   bool is_bearish_pinbar = (bar1_range > 0) && (upper_wick >= 0.45 * bar1_range) && (bar1_close < bar1_high);
+   bool is_bullish_engulf = (bar1_close > rates_m1[2].high) && (bar1_close > bar1_open);
+   bool is_bearish_engulf = (bar1_close < rates_m1[2].low) && (bar1_close < bar1_open);
+
+   // 7. Sinyal Price Action & Momentum Instan
+   bool buy_signal = false;
+   bool sell_signal = false;
+   string trigger_reason = "";
+
+   // --- SKENARIO A: WICK REJECTION SNIPER (Beli di Ujung Bawah / Jual di Pucuk Atas) ---
+   if(InpUseWickRejection)
+   {
+      // BUY: Harga menyentuh / menembus Lower BB + Muncul Jarum Bawah Panjang + Stoch Oversold (< 25) memotong ke atas
+      if((bar1_low <= bb_low || rates_m1[0].low <= bb_low) && (is_bullish_pinbar || is_bullish_engulf) && (stoch_k < 35 || (prev_stoch_k < 25 && stoch_k > prev_stoch_k)))
+      {
+         buy_signal = true;
+         trigger_reason = "M1 Wick Rejection di Lower BB (Bottom Sniper)";
+      }
+      // SELL: Harga menyentuh / menembus Upper BB + Muncul Jarum Atas Panjang + Stoch Overbought (> 75) memotong ke bawah
+      else if((bar1_high >= bb_up || rates_m1[0].high >= bb_up) && (is_bearish_pinbar || is_bearish_engulf) && (stoch_k > 65 || (prev_stoch_k > 75 && stoch_k < prev_stoch_k)))
+      {
+         sell_signal = true;
+         trigger_reason = "M1 Wick Rejection di Upper BB (Top Sniper)";
+      }
+   }
+
+   // --- SKENARIO B: MOMENTUM IMPULSE BREAKOUT (EMA 5/13 Cross + Micro Breakout) ---
+   if(!buy_signal && !sell_signal && InpUseMomentumBreakout)
+   {
+      // BUY: EMA 5 memotong ke atas EMA 13 + Candle M1 menembus High 3 candle terakhir + Stoch K > D
+      double highest_3bars = MathMax(rates_m1[1].high, MathMax(rates_m1[2].high, rates_m1[3].high));
+      if(ema5_curr > ema13_curr && ema5_buf[1] <= ema13_buf[1] && rates_m1[0].close >= highest_3bars && stoch_k > stoch_d)
+      {
+         buy_signal = true;
+         trigger_reason = "M1 EMA 5/13 Golden Cross + Momentum Breakout";
+      }
+
+      // SELL: EMA 5 memotong ke bawah EMA 13 + Candle M1 menembus Low 3 candle terakhir + Stoch K < D
+      double lowest_3bars = MathMin(rates_m1[1].low, MathMin(rates_m1[2].low, rates_m1[3].low));
+      if(ema5_curr < ema13_curr && ema5_buf[1] >= ema13_buf[1] && rates_m1[0].close <= lowest_3bars && stoch_k < stoch_d)
+      {
+         sell_signal = true;
+         trigger_reason = "M1 EMA 5/13 Death Cross + Momentum Breakdown";
+      }
+   }
+
+   // 8. Update Dashboard On-Chart
+   string dashboard_status = "STANDBY HUNTING M1...";
+   if(buy_signal) dashboard_status = "🟢 HYPER BUY DETECTED! (" + trigger_reason + ")";
+   else if(sell_signal) dashboard_status = "🔴 HYPER SELL DETECTED! (" + trigger_reason + ")";
+   DisplayAIDashboard(ema5_curr, ema13_curr, stoch_k, stoch_d, bb_up, bb_low, dashboard_status);
+
+   // 9. Cek Proteksi Daily Target (15%) & Max Loss (7%) dari Wallet
    if(g_use_daily_guard)
    {
       double cur_bal = m_account.Balance();
@@ -1050,27 +901,16 @@ void OnTick()
    }
    if(active_orders >= g_max_open_pos) return;
 
-   // 11. Cek Bar M1 untuk Mencegah Multiple Trade di Candle yang Sama
-   datetime current_bar_time = iTime(_Symbol, PERIOD_M1, 0);
-   if(current_bar_time == last_trade_bar_time) return;
+   // 11. Cooldown Minimal 5 Detik Antar Order untuk Mencegah Double-Trigger
+   if(TimeCurrent() - last_trade_time < 5) return;
 
-   // 12. EKSEKUSI INSTITUSIONAL SNIPER: KONFLUENSI TREN MAKRO M15 + ANTI-FOMO PULLBACK + AI CONF >= 60%
-   if(prob_buy >= (float)g_confidence_thresh && prob_buy > prob_sell)
+   // 12. EKSEKUSI HYPER-FAST SNIPER ORDER
+   if(buy_signal)
    {
-      if(InpUseTrendFilterM15 && !is_m15_bullish) return;
-      if(InpUseAntiFOMOPullback && raw_rsi_m1 > InpMaxRSI_Buy_M1) return;
-
-      string reason = "M15 Bullish + M1 Pullback Diskon (RSI " + DoubleToString(raw_rsi_m1, 1) + ")";
-      OpenAIOrder(ORDER_TYPE_BUY, prob_buy, active_orders, reason);
-      last_trade_bar_time = current_bar_time;
+      ExecuteFastScalp(ORDER_TYPE_BUY, trigger_reason, active_orders);
    }
-   else if(prob_sell >= (float)g_confidence_thresh && prob_sell > prob_buy)
+   else if(sell_signal)
    {
-      if(InpUseTrendFilterM15 && !is_m15_bearish) return;
-      if(InpUseAntiFOMOPullback && raw_rsi_m1 < InpMinRSI_Sell_M1) return;
-
-      string reason = "M15 Bearish + M1 Rally Diskon (RSI " + DoubleToString(raw_rsi_m1, 1) + ")";
-      OpenAIOrder(ORDER_TYPE_SELL, prob_sell, active_orders, reason);
-      last_trade_bar_time = current_bar_time;
+      ExecuteFastScalp(ORDER_TYPE_SELL, trigger_reason, active_orders);
    }
 }
