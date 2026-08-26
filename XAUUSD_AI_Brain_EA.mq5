@@ -1,12 +1,12 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
 //|  AI-Powered Dual-Regime M1/M15 Neural Scalper for Gold (XAUUSD)  |
-//|  (Instant Trigger • Trade Close PnL Webhook • Wallet Guard)      |
+//|  (Instant Trigger • Double-Check Close Webhook • Wallet Guard)   |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "3.20"
+#property version   "3.25"
 #property description "EA Scalping M1 Gold (XAUUSD) AI Deep Neural Network dengan Notifikasi Lengkap Open/Close Trade (+/- PnL & Saldo Terkini)"
 
 #include <Trade\Trade.mqh>
@@ -29,6 +29,15 @@ enum ENUM_LOT_TYPE
    LOT_PER_BALANCE  = 0, // Auto-Lot Proporsional ($500 = 0.01 Lot)
    LOT_FIXED        = 1, // Fixed Lot Size (Lot Tetap)
    LOT_RISK_PERCENT = 2  // Auto Lot (% Risk dari Equity)
+};
+
+struct STrackedPos
+{
+   ulong    ticket;
+   string   type;
+   double   open_price;
+   double   volume;
+   datetime open_time;
 };
 
 //+------------------------------------------------------------------+
@@ -87,7 +96,7 @@ input int                 InpBB_Period_M1          = 20;                    // M
 input double              InpBB_Dev_M1             = 2.0;                   // M1 BB Deviation
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "3.20";
+string                    g_current_version        = "3.25";
 double                    g_confidence_thresh      = 0.60;
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
@@ -121,6 +130,9 @@ bool onnx_loaded     = false;
 
 datetime last_trade_bar_time = 0;
 datetime m_last_cloud_sync_time = 0;
+
+STrackedPos g_tracked_positions[];
+ulong g_notified_deals[];
 
 //+------------------------------------------------------------------+
 //| HELPER PARSER JSON                                               |
@@ -349,6 +361,15 @@ void NotifyAITrade(string type, double price, double lot_used, double sl, double
 //+------------------------------------------------------------------+
 void NotifyCloseTrade(string type, double close_price, double profit, ulong deal_ticket, double volume)
 {
+   // Cek apakah deal ticket ini sudah pernah dikirim ke Discord
+   for(int i = 0; i < ArraySize(g_notified_deals); i++)
+   {
+      if(g_notified_deals[i] == deal_ticket) return;
+   }
+   int sz = ArraySize(g_notified_deals);
+   ArrayResize(g_notified_deals, sz + 1);
+   g_notified_deals[sz] = deal_ticket;
+
    int embed_color = (profit >= 0) ? 0x2ECC71 : 0xE74C3C;
    string result_emoji = (profit >= 0) ? "🟢 **PROFIT CUAN**" : "🔴 **LOSS TERKENDALI**";
    string pnl_sign = (profit >= 0) ? "+$" : "-$";
@@ -378,13 +399,13 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
    if(trans.type == TRADE_TRANSACTION_DEAL_ADD)
    {
       ulong deal_ticket = trans.deal;
+      HistorySelect(TimeCurrent() - 3600, TimeCurrent() + 60);
       if(HistoryDealSelect(deal_ticket))
       {
          long deal_magic = HistoryDealGetInteger(deal_ticket, DEAL_MAGIC);
          long deal_entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
          
-         // DEAL_ENTRY_OUT menandakan posisi resmi ditutup
-         if(deal_magic == InpMagicNumber && (deal_entry == DEAL_ENTRY_OUT || deal_entry == DEAL_ENTRY_INOUT || deal_entry == DEAL_ENTRY_OUT_BY))
+         if((deal_magic == InpMagicNumber || deal_magic == 0) && (deal_entry == DEAL_ENTRY_OUT || deal_entry == DEAL_ENTRY_INOUT || deal_entry == DEAL_ENTRY_OUT_BY))
          {
             double profit = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT) + 
                             HistoryDealGetDouble(deal_ticket, DEAL_SWAP) + 
@@ -395,6 +416,84 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
             string pos_type = (deal_type == DEAL_TYPE_BUY) ? "BUY (Tutup SELL)" : "SELL (Tutup BUY)";
             
             NotifyCloseTrade(pos_type, close_price, profit, deal_ticket, volume);
+         }
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| DOUBLE-CHECK POSITION CLOSE TRACKER DI ON TICK                   |
+//+------------------------------------------------------------------+
+void CheckPositionClosures()
+{
+   HistorySelect(TimeCurrent() - 86400, TimeCurrent() + 60);
+
+   for(int i = ArraySize(g_tracked_positions) - 1; i >= 0; i--)
+   {
+      ulong tracked_ticket = g_tracked_positions[i].ticket;
+      bool is_still_open = false;
+
+      for(int p = PositionsTotal() - 1; p >= 0; p--)
+      {
+         if(m_position.SelectByIndex(p))
+         {
+            if(m_position.Ticket() == tracked_ticket)
+            {
+               is_still_open = true;
+               break;
+            }
+         }
+      }
+
+      if(!is_still_open)
+      {
+         // Posisi telah tertutup -> cari deal penutupnya di riwayat
+         HistorySelectByPosition(tracked_ticket);
+         int total_deals = HistoryDealsTotal();
+         for(int d = total_deals - 1; d >= 0; d--)
+         {
+            ulong deal = HistoryDealGetTicket(d);
+            if(deal > 0 && HistoryDealGetInteger(deal, DEAL_ENTRY) == DEAL_ENTRY_OUT)
+            {
+               double profit = HistoryDealGetDouble(deal, DEAL_PROFIT) + HistoryDealGetDouble(deal, DEAL_SWAP) + HistoryDealGetDouble(deal, DEAL_COMMISSION);
+               double close_price = HistoryDealGetDouble(deal, DEAL_PRICE);
+               NotifyCloseTrade(g_tracked_positions[i].type, close_price, profit, deal, g_tracked_positions[i].volume);
+               break;
+            }
+         }
+
+         // Hapus dari daftar tracked
+         for(int k = i; k < ArraySize(g_tracked_positions) - 1; k++)
+         {
+            g_tracked_positions[k] = g_tracked_positions[k+1];
+         }
+         ArrayResize(g_tracked_positions, ArraySize(g_tracked_positions) - 1);
+      }
+   }
+
+   // Sinkronisasi posisi aktif yang baru terbuka
+   for(int p = PositionsTotal() - 1; p >= 0; p--)
+   {
+      if(m_position.SelectByIndex(p))
+      {
+         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
+         {
+            ulong cur_ticket = m_position.Ticket();
+            bool already_tracked = false;
+            for(int k = 0; k < ArraySize(g_tracked_positions); k++)
+            {
+               if(g_tracked_positions[k].ticket == cur_ticket) { already_tracked = true; break; }
+            }
+            if(!already_tracked)
+            {
+               int sz = ArraySize(g_tracked_positions);
+               ArrayResize(g_tracked_positions, sz + 1);
+               g_tracked_positions[sz].ticket = cur_ticket;
+               g_tracked_positions[sz].type = (m_position.PositionType() == POSITION_TYPE_BUY) ? "BUY" : "SELL";
+               g_tracked_positions[sz].open_price = m_position.PriceOpen();
+               g_tracked_positions[sz].volume = m_position.Volume();
+               g_tracked_positions[sz].open_time = (datetime)m_position.Time();
+            }
          }
       }
    }
@@ -485,7 +584,7 @@ int OnInit()
                            "{\"name\": \"🎯 Target SL / TP\", \"value\": \"`SL: " + IntegerToString(g_sl_points / 10) + " Pips | TP: " + IntegerToString(g_tp_points / 10) + " Pips`\", \"inline\": true}," +
                            "{\"name\": \"🔔 Notifikasi Webhook\", \"value\": \"`Open & Close (+/- & Saldo)`\", \"inline\": true}";
 
-   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif (v3.20)!", 
+   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif (v3.25)!", 
                     "Expert Advisor siap berburu scalping lengkap dengan sistem pelaporan Close Trade (+/- PnL & Saldo Terkini).", 
                     0x3498DB, startup_fields, false);
 
@@ -838,20 +937,23 @@ void OnTick()
    // 2. Eksekusi Proteksi Posisi (Break-Even & Trailing Stop per tick)
    ManageOpenPositions();
 
-   // 3. Ekstraksi Fitur AI Real-Time
+   // 3. Double-Check Deteksi Posisi Tertutup (Jaminan 100% Notifikasi Close Discord Terkirim)
+   CheckPositionClosures();
+
+   // 4. Ekstraksi Fitur AI Real-Time
    float features[7];
    if(!ExtractAIFeatures(features)) return;
 
-   // 4. Prediksi Keputusan oleh Otak AI
+   // 5. Prediksi Keputusan oleh Otak AI
    float prob_neutral = 0.0f;
    float prob_buy     = 0.0f;
    float prob_sell    = 0.0f;
    RunAIBrain(features, prob_neutral, prob_buy, prob_sell);
 
-   // 5. Perbarui On-Chart Live Dashboard
+   // 6. Perbarui On-Chart Live Dashboard
    DisplayAIDashboard(features, prob_neutral, prob_buy, prob_sell);
 
-   // 6. Cek Proteksi Daily Profit Target (15%) & Max Loss (7%) dari Wallet
+   // 7. Cek Proteksi Daily Profit Target (15%) & Max Loss (7%) dari Wallet
    if(g_use_daily_guard)
    {
       double cur_bal = m_account.Balance();
@@ -864,7 +966,7 @@ void OnTick()
       if(daily_pl >= dynamic_target_usd || daily_pl <= -dynamic_max_loss_usd) return;
    }
 
-   // 7. Validasi Spread & Maksimal Posisi
+   // 8. Validasi Spread & Maksimal Posisi
    if(m_symbol.Spread() > g_max_spread) return;
 
    int active_orders = 0;
@@ -877,11 +979,11 @@ void OnTick()
    }
    if(active_orders >= InpMaxOpenPositions) return;
 
-   // 8. Cek Bar M1 untuk Mencegah Multiple Trade di Candle yang Sama
+   // 9. Cek Bar M1 untuk Mencegah Multiple Trade di Candle yang Sama
    datetime current_bar_time = iTime(_Symbol, PERIOD_M1, 0);
    if(current_bar_time == last_trade_bar_time) return;
 
-   // 9. EKSEKUSI INSTAN REAL-TIME SAAT CONFIDENCE >= 60%
+   // 10. EKSEKUSI INSTAN REAL-TIME SAAT CONFIDENCE >= 60%
    if(prob_buy >= (float)g_confidence_thresh && prob_buy > prob_sell)
    {
       OpenAIOrder(ORDER_TYPE_BUY, prob_buy);
