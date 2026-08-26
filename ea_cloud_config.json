@@ -1,7 +1,7 @@
 {
-  "version": "16.00",
+  "version": "17.00",
   "sync_interval_min": 5,
-  "engine_name": "Apex Universal Multi-Asset Sovereign Citadel (v16.00 Forex & Commodities Swing Playbook Edition)",
+  "engine_name": "Apex Universal Multi-Asset Sovereign Citadel (v17.00 Universal Asset-Adaptive Lot Engine)",
   "emergency_close_all": false,
   "enable_auto_self_update": true,
   "enable_multi_pair_mode": true,
@@ -56,5 +56,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v16.00 Forex & Commodities Swing Playbook Edition: Asset-Adaptive Swing SL/TP (GBPJPY 80/250p, EURUSD 40/150p, GBPUSD 60/200p, Gold 80/240p, US30 100/350p), Wednesday Triple-Swap Protector, Weekend Holding Guard for BE-Locked Trades, Shared Global Portfolio Risk Cap (Max 2.0%), Institutional Kill-Zones Time Engine, Prop Firm 4% Drawdown Defense, In-EA Autonomous Self-Updater."
+  "status_message": "OTA v17.00 Universal Asset-Adaptive Lot Engine: Exact Currency & Point Value Normalized Lot Sizing (Gold, Forex EUR/GBP, Yen Crosses, Stock Indices), Asset-Adaptive Swing SL/TP (GBPJPY 80/250p, EURUSD 40/150p, Gold 80/240p), Shared Portfolio Risk Cap (Max 2.0%), Institutional Kill-Zones Time Engine, Prop Firm 4% Drawdown Defense, In-EA Autonomous Self-Updater."
 }
