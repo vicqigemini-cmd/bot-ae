@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
 //|  AI-Powered Dual-Regime M1/M15 Neural Scalper for Gold (XAUUSD)  |
-//|  (Instant Trigger • Double-Check Close Webhook • Wallet Guard)   |
+//|  (Instant Trigger • Max 7 Layer Positions • Trade Close Webhook)  |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "3.25"
-#property description "EA Scalping M1 Gold (XAUUSD) AI Deep Neural Network dengan Notifikasi Lengkap Open/Close Trade (+/- PnL & Saldo Terkini)"
+#property version   "3.30"
+#property description "EA Scalping M1 Gold (XAUUSD) AI Deep Neural Network dengan Dukungan Multi-Layer hingga Max 7 Posisi Simultan"
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -68,7 +68,7 @@ input double              InpRiskPercent           = 1.0;                   // R
 input int                 InpStopLossPoints        = 150;                   // Stop Loss (Points, 150 pts = 15 pips)
 input int                 InpTakeProfitPoints      = 300;                   // Take Profit (Points, 300 pts = 30 pips)
 input int                 InpMaxSpreadPoints       = 75;                    // Max Spread Filter (Points)
-input int                 InpMaxOpenPositions      = 1;                     // Max Posisi Scalping Aktif
+input int                 InpMaxOpenPositions      = 7;                     // Max Posisi Scalping Aktif (Max 7 Entry)
 
 input group "=== 5. BREAK-EVEN & TRAILING STOP ==="
 input bool                InpUseBreakEven          = true;                  // Aktifkan Break-Even (BE)
@@ -96,13 +96,14 @@ input int                 InpBB_Period_M1          = 20;                    // M
 input double              InpBB_Dev_M1             = 2.0;                   // M1 BB Deviation
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "3.25";
+string                    g_current_version        = "3.30";
 double                    g_confidence_thresh      = 0.60;
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_sl_points              = 150;
 int                       g_tp_points              = 300;
 int                       g_max_spread             = 75;
+int                       g_max_open_pos           = 7;
 bool                      g_use_trailing           = true;
 int                       g_trailing_start         = 120;
 int                       g_trailing_dist          = 80;
@@ -242,6 +243,7 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
          g_sl_points          = (int)ExtractJsonNumber(json, "stop_loss_points", InpStopLossPoints);
          g_tp_points          = (int)ExtractJsonNumber(json, "take_profit_points", InpTakeProfitPoints);
          g_max_spread         = (int)ExtractJsonNumber(json, "max_spread_points", InpMaxSpreadPoints);
+         g_max_open_pos       = (int)ExtractJsonNumber(json, "max_open_positions", InpMaxOpenPositions);
          g_use_trailing       = ExtractJsonBool(json, "use_trailing_stop", InpUseTrailingStop);
          g_use_daily_guard    = ExtractJsonBool(json, "use_daily_guard", InpUseDailyGuard);
          g_daily_target_pct   = ExtractJsonNumber(json, "daily_target_profit_percent", InpDailyTargetPercent);
@@ -256,10 +258,11 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
             string update_fields = "{\"name\": \"🧠 Versi AI Engine\", \"value\": \"`v" + g_current_version + " (Cloud Synced)`\", \"inline\": true}," +
                                    "{\"name\": \"🎯 Target Harian (15%)\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (" + DoubleToString(g_daily_target_pct, 0) + "% Wallet)`\", \"inline\": true}," +
                                    "{\"name\": \"🛡️ Max Loss Harian (7%)\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (" + DoubleToString(g_daily_max_loss_pct, 0) + "% Wallet)`\", \"inline\": true}," +
+                                   "{\"name\": \"⚡ Max Posisi Simultan\", \"value\": \"`Max " + IntegerToString(g_max_open_pos) + " Entry (Layering)`\", \"inline\": true}," +
                                    "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot`\", \"inline\": true}";
             
             SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (AI-BRAIN v" + g_current_version + ")!", 
-                             "Pembaruan strategi dan sistem notifikasi Close Trade (+/- Saldo) berhasil disinkronkan!", 
+                             "Dukungan Scalping Multi-Layer Max 7 Posisi Simultan berhasil diaktifkan secara otomatis!", 
                              0x9B59B6, update_fields, false);
          }
       }
@@ -335,12 +338,12 @@ double CalculateLotSize(double sl_points)
 //+------------------------------------------------------------------+
 //| FORMAT NOTIFIKASI OPEN TRADE DISCORD                             |
 //+------------------------------------------------------------------+
-void NotifyAITrade(string type, double price, double lot_used, double sl, double tp, ulong ticket, float confidence, int spread_used)
+void NotifyAITrade(string type, double price, double lot_used, double sl, double tp, ulong ticket, float confidence, int spread_used, int current_layers)
 {
    int embed_color = (type == "BUY") ? 0x2ECC71 : 0xE74C3C;
    string emoji = (type == "BUY") ? "🟢" : "🔴";
 
-   string fields = "{\"name\": \"🏷️ Tipe Order AI\", \"value\": \"" + emoji + " **" + type + " (Scalp M1)**\", \"inline\": true}," +
+   string fields = "{\"name\": \"🏷️ Tipe Order AI\", \"value\": \"" + emoji + " **" + type + " (Layer " + IntegerToString(current_layers) + "/" + IntegerToString(g_max_open_pos) + ")**\", \"inline\": true}," +
                    "{\"name\": \"🧠 AI Confidence\", \"value\": \"**" + DoubleToString(confidence * 100.0f, 1) + "%** 🔥\", \"inline\": true}," +
                    "{\"name\": \"📊 Simbol & Lot\", \"value\": \"`" + _Symbol + "` (**" + DoubleToString(lot_used, 2) + " Lot**)\", \"inline\": true}," +
                    "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(price, _Digits) + "`\", \"inline\": true}," +
@@ -350,7 +353,7 @@ void NotifyAITrade(string type, double price, double lot_used, double sl, double
                    "{\"name\": \"💰 Saldo Akun\", \"value\": \"`$" + DoubleToString(m_account.Balance(), 2) + "` (Auto-Lot $500 = 0.01)\", \"inline\": true}," +
                    "{\"name\": \"🎫 Ticket ID\", \"value\": \"`#" + IntegerToString(ticket) + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("🧠 AI NEURAL SCALPER EXECUTED (" + type + ")", 
+   SendDiscordEmbed("🧠 AI NEURAL SCALPER EXECUTED (" + type + " - Layer " + IntegerToString(current_layers) + ")", 
                     "Deep Neural Network AI mendeteksi probabilitas tinggi (" + DoubleToString(confidence * 100.0f, 1) + "%) pada timeframe M1/M15 Gold.", 
                     embed_color, 
                     fields, false);
@@ -447,7 +450,6 @@ void CheckPositionClosures()
 
       if(!is_still_open)
       {
-         // Posisi telah tertutup -> cari deal penutupnya di riwayat
          HistorySelectByPosition(tracked_ticket);
          int total_deals = HistoryDealsTotal();
          for(int d = total_deals - 1; d >= 0; d--)
@@ -462,7 +464,6 @@ void CheckPositionClosures()
             }
          }
 
-         // Hapus dari daftar tracked
          for(int k = i; k < ArraySize(g_tracked_positions) - 1; k++)
          {
             g_tracked_positions[k] = g_tracked_positions[k+1];
@@ -471,7 +472,6 @@ void CheckPositionClosures()
       }
    }
 
-   // Sinkronisasi posisi aktif yang baru terbuka
    for(int p = PositionsTotal() - 1; p >= 0; p--)
    {
       if(m_position.SelectByIndex(p))
@@ -526,6 +526,7 @@ int OnInit()
    g_sl_points          = InpStopLossPoints;
    g_tp_points          = InpTakeProfitPoints;
    g_max_spread         = InpMaxSpreadPoints;
+   g_max_open_pos       = InpMaxOpenPositions;
    g_use_trailing       = InpUseTrailingStop;
    g_trailing_start     = InpTrailingStartPoints;
    g_trailing_dist      = InpTrailingDistance;
@@ -580,12 +581,12 @@ int OnInit()
    string startup_fields = "{\"name\": \"🧠 AI Neural Engine\", \"value\": \"`Deep MLP (7->8->6->3)`\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target Cuan Harian\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (15% Wallet)`\", \"inline\": true}," +
                            "{\"name\": \"🛡️ Max Loss Harian\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (7% Wallet)`\", \"inline\": true}," +
+                           "{\"name\": \"⚡ Max Posisi Simultan\", \"value\": \"`Max " + IntegerToString(g_max_open_pos) + " Entry (Layering)`\", \"inline\": true}," +
                            "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Lot: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}," +
-                           "{\"name\": \"🎯 Target SL / TP\", \"value\": \"`SL: " + IntegerToString(g_sl_points / 10) + " Pips | TP: " + IntegerToString(g_tp_points / 10) + " Pips`\", \"inline\": true}," +
-                           "{\"name\": \"🔔 Notifikasi Webhook\", \"value\": \"`Open & Close (+/- & Saldo)`\", \"inline\": true}";
+                           "{\"name\": \"🎯 Target SL / TP\", \"value\": \"`SL: " + IntegerToString(g_sl_points / 10) + " Pips | TP: " + IntegerToString(g_tp_points / 10) + " Pips`\", \"inline\": true}";
 
-   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif (v3.25)!", 
-                    "Expert Advisor siap berburu scalping lengkap dengan sistem pelaporan Close Trade (+/- PnL & Saldo Terkini).", 
+   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif (v3.30 - Max 7 Entry)!", 
+                    "Expert Advisor siap berburu scalping multi-layer hingga maksimal 7 posisi aktif simultan.", 
                     0x3498DB, startup_fields, false);
 
    return INIT_SUCCEEDED;
@@ -782,12 +783,21 @@ void DisplayAIDashboard(const float &features[], float p_neu, float p_buy, float
    double daily_pl = GetDailyProfitLoss();
    double lot = CalculateLotSize(g_sl_points);
 
+   int active_orders = 0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      if(m_position.SelectByIndex(i))
+      {
+         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber) active_orders++;
+      }
+   }
+
    string info = "=========================================================\n";
    info += "       🧠 XAUUSD AI-BRAIN DUAL-REGIME SCALPER v" + g_current_version + "    \n";
    info += "=========================================================\n";
    info += StringFormat(" 💰 Balance / Equity : $%.2f / $%.2f\n", m_account.Balance(), m_account.Equity());
    info += StringFormat(" 📈 Auto-Lot Mode    : %.2f Lot ($%.0f = %.2f Lot)\n", lot, g_balance_step, g_lot_step);
-   info += StringFormat(" 🧠 AI Neural Model  : %s\n", engine_name);
+   info += StringFormat(" ⚡ Posisi Aktif     : %d / %d Posisi (Max 7 Layer)\n", active_orders, g_max_open_pos);
    info += StringFormat(" 🎯 Ambang Keyakinan : %.0f%% Minimum Confidence\n", g_confidence_thresh * 100.0);
    info += "---------------------------------------------------------\n";
    info += " [AI REAL-TIME PROBABILITY METER]\n";
@@ -879,9 +889,9 @@ void ManageOpenPositions()
 }
 
 //+------------------------------------------------------------------+
-//| BUKA POSISI ORDER AI                                             |
+//| BUKA POSISI ORDER AI (SUPPORT MULTI-LAYER MAX 7)                 |
 //+------------------------------------------------------------------+
-void OpenAIOrder(ENUM_ORDER_TYPE order_type, float confidence)
+void OpenAIOrder(ENUM_ORDER_TYPE order_type, float confidence, int current_active_count)
 {
    double point = m_symbol.Point();
    double lot   = CalculateLotSize(g_sl_points);
@@ -900,8 +910,8 @@ void OpenAIOrder(ENUM_ORDER_TYPE order_type, float confidence)
 
       if(m_trade.Buy(lot, _Symbol, ask, sl, tp, comment_label))
       {
-         Print("🚀 [AI BUY EXECUTED] Conf: ", DoubleToString(confidence * 100.0f, 1), "% | Lot: ", lot, " | Price: ", ask);
-         NotifyAITrade("BUY", ask, lot, sl, tp, m_trade.ResultOrder(), confidence, current_spread);
+         Print("🚀 [AI BUY EXECUTED - Layer ", current_active_count + 1, "] Conf: ", DoubleToString(confidence * 100.0f, 1), "% | Lot: ", lot, " | Price: ", ask);
+         NotifyAITrade("BUY", ask, lot, sl, tp, m_trade.ResultOrder(), confidence, current_spread, current_active_count + 1);
       }
    }
    else if(order_type == ORDER_TYPE_SELL)
@@ -914,8 +924,8 @@ void OpenAIOrder(ENUM_ORDER_TYPE order_type, float confidence)
 
       if(m_trade.Sell(lot, _Symbol, bid, sl, tp, comment_label))
       {
-         Print("🚀 [AI SELL EXECUTED] Conf: ", DoubleToString(confidence * 100.0f, 1), "% | Lot: ", lot, " | Price: ", bid);
-         NotifyAITrade("SELL", bid, lot, sl, tp, m_trade.ResultOrder(), confidence, current_spread);
+         Print("🚀 [AI SELL EXECUTED - Layer ", current_active_count + 1, "] Conf: ", DoubleToString(confidence * 100.0f, 1), "% | Lot: ", lot, " | Price: ", bid);
+         NotifyAITrade("SELL", bid, lot, sl, tp, m_trade.ResultOrder(), confidence, current_spread, current_active_count + 1);
       }
    }
 }
@@ -966,7 +976,7 @@ void OnTick()
       if(daily_pl >= dynamic_target_usd || daily_pl <= -dynamic_max_loss_usd) return;
    }
 
-   // 8. Validasi Spread & Maksimal Posisi
+   // 8. Validasi Spread & Maksimal 7 Posisi
    if(m_symbol.Spread() > g_max_spread) return;
 
    int active_orders = 0;
@@ -977,7 +987,7 @@ void OnTick()
          if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber) active_orders++;
       }
    }
-   if(active_orders >= InpMaxOpenPositions) return;
+   if(active_orders >= g_max_open_pos) return;
 
    // 9. Cek Bar M1 untuk Mencegah Multiple Trade di Candle yang Sama
    datetime current_bar_time = iTime(_Symbol, PERIOD_M1, 0);
@@ -986,12 +996,12 @@ void OnTick()
    // 10. EKSEKUSI INSTAN REAL-TIME SAAT CONFIDENCE >= 60%
    if(prob_buy >= (float)g_confidence_thresh && prob_buy > prob_sell)
    {
-      OpenAIOrder(ORDER_TYPE_BUY, prob_buy);
-      last_trade_bar_time = current_bar_time; // Kunci agar 1 bar M1 hanya 1 trade
+      OpenAIOrder(ORDER_TYPE_BUY, prob_buy, active_orders);
+      last_trade_bar_time = current_bar_time;
    }
    else if(prob_sell >= (float)g_confidence_thresh && prob_sell > prob_buy)
    {
-      OpenAIOrder(ORDER_TYPE_SELL, prob_sell);
-      last_trade_bar_time = current_bar_time; // Kunci agar 1 bar M1 hanya 1 trade
+      OpenAIOrder(ORDER_TYPE_SELL, prob_sell, active_orders);
+      last_trade_bar_time = current_bar_time;
    }
 }
