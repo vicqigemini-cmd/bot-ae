@@ -1,7 +1,7 @@
 {
-  "version": "7.00",
+  "version": "7.10",
   "sync_interval_min": 5,
-  "engine_name": "XAUUSD Apex Pinnacle Sovereign Master (Macro Bias + Tick Velocity + Dual TP)",
+  "engine_name": "XAUUSD Apex Flawless Sovereign Master (Discount Grid + Closed M1 + Instant BE Sync)",
   "auto_lot": true,
   "balance_per_step": 500.0,
   "lot_per_step": 0.01,
@@ -10,6 +10,7 @@
   "max_spread_points": 80,
   "max_open_positions": 3,
   "min_layer_distance_points": 30,
+  "min_margin_level_for_grid": 400.0,
   "enable_scalping_engine": true,
   "enable_swing_engine": true,
   "use_macro_bias_booster": true,
@@ -17,6 +18,7 @@
   "use_adaptive_vwap": true,
   "use_dual_ticket_swing": true,
   "swing_min_adx": 20.0,
+  "swing_max_chase_points": 250,
   "swing_sl_points": 800,
   "swing_tp1_points": 800,
   "swing_tp2_runner_points": 2400,
@@ -26,6 +28,7 @@
   "swing_trailing_distance_points": 600,
   "swing_trailing_step_points": 200,
   "swing_hold_weekend_if_be": true,
+  "use_triple_swap_guard": true,
   "use_regime_switching": true,
   "use_asian_sweep_trap": true,
   "use_triple_screen": false,
@@ -45,5 +48,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v7.00 Pinnacle Sovereign Aktif: Macro Bias Booster H4 ke M1, Tick Velocity Speedometer, Adaptive Session VWAP, Spread-Aware Trailing, dan Dual-Ticket Swing Scaling."
+  "status_message": "OTA v7.10 Flawless Sovereign Aktif: Directional Discount Layering, Closed M1 Confirmation (No Repaint), Margin Guard 400%, Anti-Late Chase H1, dan Event-Triggered Runner BE Sync."
 }
