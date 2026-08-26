@@ -55,7 +55,13 @@ input bool                InpEnableCloudSync       = true;                  // A
 input int                 InpSyncIntervalMin       = 5;                     // Interval Cek Update Cloud (Menit)
 
 input group "=== 3. 5 PILAR KUANTITATIF & RESPONSIVITAS TINGGI ==="
-input ulong               InpMagicNumber           = 202611;                // Magic Number EA
+input group "=== MAGIC NUMBERS (DUAL ENGINE) ==="
+input ulong               InpMagicScalp            = 202611;                // Magic Number (M1 Scalping)
+input ulong               InpMagicSwing            = 202612;                // Magic Number (M15 Swing)
+input int                 InpSwingSLPoints         = 500;                   // Swing Stop Loss (Points)
+input int                 InpSwingTPPoints         = 1500;                  // Swing Take Profit (Points)
+input int                 InpSwingMaxOpen          = 1;                     // Maksimal Posisi Swing Aktif
+
 input string              InpTradeComment          = "Apex_XAU";            // Label Order
 input bool                InpUseRegimeSwitching    = true;                  // Pilar 1: Auto-Switch Strategi (Pullback vs Mean Reversion)
 input bool                InpUseSessionVWAP        = true;                  // Pilar 2: Session VWAP Institutional Bands (+/- 1.2 SD)
@@ -126,6 +132,8 @@ int handle_stoch_m1  = INVALID_HANDLE;
 int handle_bb_m1     = INVALID_HANDLE;
 int handle_atr_m1    = INVALID_HANDLE;
 int handle_ema50_m15 = INVALID_HANDLE;
+int handle_ema20_m15 = INVALID_HANDLE;
+int handle_rsi_m15   = INVALID_HANDLE;
 
 datetime last_trade_time = 0;
 datetime m_last_cloud_sync_time = 0;
@@ -413,7 +421,7 @@ double GetDailyProfitLoss()
       ulong ticket = HistoryDealGetTicket(i);
       if(ticket > 0)
       {
-         if(HistoryDealGetInteger(ticket, DEAL_MAGIC) == InpMagicNumber)
+         if(HistoryDealGetInteger(ticket, DEAL_MAGIC) == InpMagicScalp)
          {
             total_profit += HistoryDealGetDouble(ticket, DEAL_PROFIT) + HistoryDealGetDouble(ticket, DEAL_SWAP) + HistoryDealGetDouble(ticket, DEAL_COMMISSION);
          }
@@ -537,7 +545,8 @@ void CloseAllPositionsForWeekend()
    {
       if(m_position.SelectByIndex(i))
       {
-         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
+         // HANYA TUTUP SCALPING, SWING DIBIARKAN MENGINAP
+         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicScalp)
          {
             m_trade.PositionClose(m_position.Ticket());
          }
@@ -660,7 +669,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
          long deal_magic = HistoryDealGetInteger(deal_ticket, DEAL_MAGIC);
          long deal_entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
          
-         if((deal_magic == InpMagicNumber || deal_magic == 0) && (deal_entry == DEAL_ENTRY_OUT || deal_entry == DEAL_ENTRY_INOUT || deal_entry == DEAL_ENTRY_OUT_BY))
+         if((deal_magic == InpMagicScalp || deal_magic == InpMagicSwing || deal_magic == 0) && (deal_entry == DEAL_ENTRY_OUT || deal_entry == DEAL_ENTRY_INOUT || deal_entry == DEAL_ENTRY_OUT_BY))
          {
             double profit = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT) + 
                             HistoryDealGetDouble(deal_ticket, DEAL_SWAP) + 
@@ -728,7 +737,7 @@ void CheckPositionClosures()
    {
       if(m_position.SelectByIndex(p))
       {
-         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
+         if(m_position.Symbol() == _Symbol && (m_position.Magic() == InpMagicScalp || m_position.Magic() == InpMagicSwing))
          {
             ulong cur_ticket = m_position.Ticket();
             bool already_tracked = false;
@@ -767,7 +776,7 @@ int OnInit()
    if(!m_symbol.Name(_Symbol)) return INIT_FAILED;
    m_symbol.Refresh();
 
-   m_trade.SetExpertMagicNumber(InpMagicNumber);
+   m_trade.SetExpertMagicNumber(InpMagicScalp);
    m_trade.SetMarginMode();
    m_trade.SetTypeFillingBySymbol(_Symbol);
    m_trade.SetDeviationInPoints(30);
@@ -796,10 +805,12 @@ int OnInit()
    handle_bb_m1     = iBands(_Symbol, PERIOD_M1, 20, 0, 2.0, PRICE_CLOSE);
    handle_atr_m1    = iATR(_Symbol, PERIOD_M1, 14);
    handle_ema50_m15 = iMA(_Symbol, PERIOD_M15, 50, 0, MODE_EMA, PRICE_CLOSE);
+   handle_ema20_m15 = iMA(_Symbol, PERIOD_M15, 20, 0, MODE_EMA, PRICE_CLOSE);
+   handle_rsi_m15   = iRSI(_Symbol, PERIOD_M15, 14, PRICE_CLOSE);
 
    if(handle_ema5_m1 == INVALID_HANDLE || handle_ema13_m1 == INVALID_HANDLE ||
       handle_stoch_m1 == INVALID_HANDLE || handle_bb_m1 == INVALID_HANDLE ||
-      handle_atr_m1 == INVALID_HANDLE || handle_ema50_m15 == INVALID_HANDLE)
+      handle_atr_m1 == INVALID_HANDLE || handle_ema50_m15 == INVALID_HANDLE || handle_ema20_m15 == INVALID_HANDLE || handle_rsi_m15 == INVALID_HANDLE)
    {
       Print("[ERROR] Gagal inisialisasi indikator Apex Active M1!");
       return INIT_FAILED;
@@ -835,6 +846,8 @@ void OnDeinit(const int reason)
    IndicatorRelease(handle_bb_m1);
    IndicatorRelease(handle_atr_m1);
    IndicatorRelease(handle_ema50_m15);
+   IndicatorRelease(handle_ema20_m15);
+   IndicatorRelease(handle_rsi_m15);
    Comment("");
 }
 
@@ -866,7 +879,7 @@ void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_
    {
       if(m_position.SelectByIndex(i))
       {
-         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
+         if(m_position.Symbol() == _Symbol && (m_position.Magic() == InpMagicScalp || m_position.Magic() == InpMagicSwing))
          {
             active_orders++;
             if(m_position.PositionType() == POSITION_TYPE_BUY) buy_orders++;
@@ -921,7 +934,7 @@ void ManageOpenPositions()
    {
       if(m_position.SelectByIndex(p))
       {
-         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
+         if(m_position.Symbol() == _Symbol && (m_position.Magic() == InpMagicScalp || m_position.Magic() == InpMagicSwing))
          {
             if(m_position.PositionType() == POSITION_TYPE_BUY) active_buy_count++;
             else if(m_position.PositionType() == POSITION_TYPE_SELL) active_sell_count++;
@@ -933,7 +946,7 @@ void ManageOpenPositions()
    {
       if(!m_position.SelectByIndex(i)) continue;
       if(m_position.Symbol() != _Symbol) continue;
-      if(m_position.Magic() != InpMagicNumber) continue;
+      if(m_position.Magic() != InpMagicScalp) continue;
 
       ulong  ticket       = m_position.Ticket();
       double open_price   = m_position.PriceOpen();
@@ -1024,7 +1037,7 @@ bool IsLayerDistanceValid(ENUM_ORDER_TYPE order_type, double entry_price)
    {
       if(m_position.SelectByIndex(i))
       {
-         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
+         if(m_position.Symbol() == _Symbol && (m_position.Magic() == InpMagicScalp || m_position.Magic() == InpMagicSwing))
          {
             double pos_price = m_position.PriceOpen();
             double dist_pts  = MathAbs(entry_price - pos_price) / point;
@@ -1041,6 +1054,7 @@ bool IsLayerDistanceValid(ENUM_ORDER_TYPE order_type, double entry_price)
 //+------------------------------------------------------------------+
 void ExecuteApexScalp(ENUM_ORDER_TYPE order_type, string trigger_source, int current_active_count, int dyn_sl_pts, int dyn_tp_pts)
 {
+   m_trade.SetExpertMagicNumber(InpMagicScalp);
    double point = m_symbol.Point();
    double lot   = CalculateLotSizeWithDefendTheBag(dyn_sl_pts);
    if(lot <= 0) return;
@@ -1087,6 +1101,46 @@ void ExecuteApexScalp(ENUM_ORDER_TYPE order_type, string trigger_source, int cur
 //+------------------------------------------------------------------+
 //| ON TICK EXECUTION (RESPONSIVE APEX QUANT ENGINE)                 |
 //+------------------------------------------------------------------+
+
+//+------------------------------------------------------------------+
+//| BUKA POSISI SWING (M15 MACRO)                                    |
+//+------------------------------------------------------------------+
+void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
+{
+   m_trade.SetExpertMagicNumber(InpMagicSwing);
+   double point = m_symbol.Point();
+   double lot   = CalculateLotSizeWithDefendTheBag(InpSwingSLPoints); // Reuse sizing logic based on risk
+   if(lot <= 0) return;
+
+   int current_spread = (int)m_symbol.Spread();
+   string comment_label = "Swing_Core";
+
+   if(order_type == ORDER_TYPE_BUY)
+   {
+      double ask = m_symbol.Ask();
+      double sl  = m_symbol.NormalizePrice(ask - InpSwingSLPoints * point);
+      double tp  = m_symbol.NormalizePrice(ask + InpSwingTPPoints * point);
+
+      if(m_trade.Buy(lot, _Symbol, ask, sl, tp, comment_label))
+      {
+         Print("?? [SWING BUY EXECUTED] Trigger: ", trigger_source, " | Price: ", ask);
+         NotifyAITrade("BUY", ask, lot, sl, tp, m_trade.ResultOrder(), "[SWING CORE] " + trigger_source, current_spread, 1, InpSwingSLPoints, InpSwingTPPoints);
+      }
+   }
+   else if(order_type == ORDER_TYPE_SELL)
+   {
+      double bid = m_symbol.Bid();
+      double sl  = m_symbol.NormalizePrice(bid + InpSwingSLPoints * point);
+      double tp  = m_symbol.NormalizePrice(bid - InpSwingTPPoints * point);
+
+      if(m_trade.Sell(lot, _Symbol, bid, sl, tp, comment_label))
+      {
+         Print("?? [SWING SELL EXECUTED] Trigger: ", trigger_source, " | Price: ", bid);
+         NotifyAITrade("SELL", bid, lot, sl, tp, m_trade.ResultOrder(), "[SWING CORE] " + trigger_source, current_spread, 1, InpSwingSLPoints, InpSwingTPPoints);
+      }
+   }
+}
+
 void OnTick()
 {
    if(!m_symbol.RefreshRates()) return;
@@ -1180,7 +1234,7 @@ void OnTick()
    {
       if(m_position.SelectByIndex(i))
       {
-         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
+         if(m_position.Symbol() == _Symbol && (m_position.Magic() == InpMagicScalp || m_position.Magic() == InpMagicSwing))
          {
             active_orders++;
             if(m_position.PositionType() == POSITION_TYPE_BUY) active_buy_count++;
@@ -1308,6 +1362,38 @@ void OnTick()
 
    // 17. Cooldown Minimal 5 Detik Antar Order
    if(TimeCurrent() - last_trade_time < 5) return;
+
+   
+   // --- EKSEKUSI SWING MACRO TREND (M15) ---
+   int active_swing = 0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      if(m_position.SelectByIndex(i) && m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicSwing)
+         active_swing++;
+   }
+
+   if(active_swing < InpSwingMaxOpen && rates_m1[1].time != g_last_asian_m5_bar) // Just to throttle check slightly
+   {
+      double ema20_buf[], ema50_buf2[], rsi_buf[];
+      ArraySetAsSeries(ema20_buf, true); ArraySetAsSeries(ema50_buf2, true); ArraySetAsSeries(rsi_buf, true);
+      
+      if(CopyBuffer(handle_ema20_m15, 0, 0, 3, ema20_buf) > 0 &&
+         CopyBuffer(handle_ema50_m15, 0, 0, 3, ema50_buf2) > 0 &&
+         CopyBuffer(handle_rsi_m15, 0, 0, 2, rsi_buf) > 0)
+      {
+         double e20_curr = ema20_buf[1];
+         double e20_prev = ema20_buf[2];
+         double e50_curr = ema50_buf2[1];
+         double e50_prev = ema50_buf2[2];
+         double rsi_curr = rsi_buf[1];
+         
+         bool swing_buy = (e20_prev <= e50_prev && e20_curr > e50_curr) && (rsi_curr >= 45.0 && rsi_curr <= 80.0);
+         bool swing_sell = (e20_prev >= e50_prev && e20_curr < e50_curr) && (rsi_curr <= 55.0 && rsi_curr >= 20.0);
+         
+         if(swing_buy && !IsHighImpactNewsTime()) ExecuteSwingOrder(ORDER_TYPE_BUY, "EMA20 Crossover Naik (M15)");
+         else if(swing_sell && !IsHighImpactNewsTime()) ExecuteSwingOrder(ORDER_TYPE_SELL, "EMA20 Crossover Turun (M15)");
+      }
+   }
 
    // 18. EKSEKUSI APEX QUANT SNIPER ORDER (Maksimal 3 Layer)
    if(buy_signal)
