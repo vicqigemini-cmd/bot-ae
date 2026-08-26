@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
 //|  AI-Powered Dual-Regime M1/M15 Neural Scalper for Gold (XAUUSD)  |
-//|  (Deep Neural Net • OTA Cloud Sync • 15% Target / 7% Max Loss)   |
+//|  (Instant Tick Execution • Deep Neural Net • OTA Cloud Sync)     |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "3.10"
-#property description "EA Scalping M1 Gold (XAUUSD) AI Deep Neural Network dengan Analisis M15, OTA Cloud Sync, Target 15% Wallet & Max Loss 7%"
+#property version   "3.15"
+#property description "EA Scalping M1 Gold (XAUUSD) AI Deep Neural Network dengan Eksekusi Instan Real-Time saat Confidence >= 60%"
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -87,7 +87,7 @@ input int                 InpBB_Period_M1          = 20;                    // M
 input double              InpBB_Dev_M1             = 2.0;                   // M1 BB Deviation
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "3.10";
+string                    g_current_version        = "3.15";
 double                    g_confidence_thresh      = 0.60;
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
@@ -119,7 +119,7 @@ int handle_bb_m1     = INVALID_HANDLE;
 long onnx_handle     = INVALID_HANDLE;
 bool onnx_loaded     = false;
 
-datetime last_m1_bar_time = 0;
+datetime last_trade_bar_time = 0;
 datetime m_last_cloud_sync_time = 0;
 
 //+------------------------------------------------------------------+
@@ -427,10 +427,10 @@ int OnInit()
                            "{\"name\": \"🛡️ Max Loss Harian\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (7% Wallet)`\", \"inline\": true}," +
                            "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Lot: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target SL / TP\", \"value\": \"`SL: " + IntegerToString(g_sl_points / 10) + " Pips | TP: " + IntegerToString(g_tp_points / 10) + " Pips`\", \"inline\": true}," +
-                           "{\"name\": \"☁️ OTA Cloud Sync\", \"value\": \"`v" + g_current_version + " (Active)`\", \"inline\": true}";
+                           "{\"name\": \"⚡ Mode Eksekusi\", \"value\": \"`Instan Real-Time saat >= 60%`\", \"inline\": true}";
 
-   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif (Target 15% • Max Loss 7%)!", 
-                    "Expert Advisor bertenaga Deep Neural Network AI siap berburu scalping dengan proteksi Wallet Guard.", 
+   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif (v3.15)!", 
+                    "Expert Advisor bertenaga Deep Neural Network AI siap berburu scalping secara instan saat confidence mencapai >= 60%.", 
                     0x3498DB, startup_fields, false);
 
    return INIT_SUCCEEDED;
@@ -612,8 +612,8 @@ void RunAIBrain(const float &features[], float &prob_neutral, float &prob_buy, f
 void DisplayAIDashboard(const float &features[], float p_neu, float p_buy, float p_sell)
 {
    string ai_action = "WAIT / HUNTING...";
-   if(p_buy >= (float)g_confidence_thresh && p_buy > p_sell) ai_action = StringFormat("BUY SIGNAL (%.1f%% Conf)", p_buy * 100.0f);
-   else if(p_sell >= (float)g_confidence_thresh && p_sell > p_buy) ai_action = StringFormat("SELL SIGNAL (%.1f%% Conf)", p_sell * 100.0f);
+   if(p_buy >= (float)g_confidence_thresh && p_buy > p_sell) ai_action = StringFormat("BUY SIGNAL (%.1f%% Conf) 🔥", p_buy * 100.0f);
+   else if(p_sell >= (float)g_confidence_thresh && p_sell > p_buy) ai_action = StringFormat("SELL SIGNAL (%.1f%% Conf) 🔥", p_sell * 100.0f);
 
    string engine_name = (InpAIMode == AI_ONNX_MODEL_FILE && onnx_loaded) ? "ONNX Engine (xauusd_m1_brain.onnx)" : "Built-in Deep Neural Network (MLP)";
    long current_spread = m_symbol.Spread();
@@ -745,6 +745,7 @@ void OpenAIOrder(ENUM_ORDER_TYPE order_type, float confidence)
 
       if(m_trade.Buy(lot, _Symbol, ask, sl, tp, comment_label))
       {
+         Print("🚀 [AI BUY EXECUTED] Conf: ", DoubleToString(confidence * 100.0f, 1), "% | Lot: ", lot, " | Price: ", ask);
          NotifyAITrade("BUY", ask, lot, sl, tp, m_trade.ResultOrder(), confidence, current_spread);
       }
    }
@@ -758,6 +759,7 @@ void OpenAIOrder(ENUM_ORDER_TYPE order_type, float confidence)
 
       if(m_trade.Sell(lot, _Symbol, bid, sl, tp, comment_label))
       {
+         Print("🚀 [AI SELL EXECUTED] Conf: ", DoubleToString(confidence * 100.0f, 1), "% | Lot: ", lot, " | Price: ", bid);
          NotifyAITrade("SELL", bid, lot, sl, tp, m_trade.ResultOrder(), confidence, current_spread);
       }
    }
@@ -806,12 +808,7 @@ void OnTick()
       if(daily_pl >= dynamic_target_usd || daily_pl <= -dynamic_max_loss_usd) return;
    }
 
-   // 7. Filter Bar Baru M1
-   datetime current_time = iTime(_Symbol, PERIOD_M1, 0);
-   if(current_time == 0 || current_time == last_m1_bar_time) return;
-   last_m1_bar_time = current_time;
-
-   // 8. Validasi Spread & Maksimal Posisi
+   // 7. Validasi Spread & Maksimal Posisi
    if(m_symbol.Spread() > g_max_spread) return;
 
    int active_orders = 0;
@@ -824,13 +821,19 @@ void OnTick()
    }
    if(active_orders >= InpMaxOpenPositions) return;
 
-   // 9. Eksekusi Keputusan AI
+   // 8. Cek Bar M1 untuk Mencegah Multiple Trade di Candle yang Sama
+   datetime current_bar_time = iTime(_Symbol, PERIOD_M1, 0);
+   if(current_bar_time == last_trade_bar_time) return;
+
+   // 9. EKSEKUSI INSTAN REAL-TIME SAAT CONFIDENCE >= 60%
    if(prob_buy >= (float)g_confidence_thresh && prob_buy > prob_sell)
    {
       OpenAIOrder(ORDER_TYPE_BUY, prob_buy);
+      last_trade_bar_time = current_bar_time; // Kunci agar 1 bar M1 hanya 1 trade
    }
    else if(prob_sell >= (float)g_confidence_thresh && prob_sell > prob_buy)
    {
       OpenAIOrder(ORDER_TYPE_SELL, prob_sell);
+      last_trade_bar_time = current_bar_time; // Kunci agar 1 bar M1 hanya 1 trade
    }
 }
