@@ -1,7 +1,7 @@
 {
-  "version": "7.10",
+  "version": "7.20",
   "sync_interval_min": 5,
-  "engine_name": "XAUUSD Apex Flawless Sovereign Master (Discount Grid + Closed M1 + Instant BE Sync)",
+  "engine_name": "XAUUSD Apex Absolute Sovereign Master (Basket TP Grid + Friday 21:00 + Persistent Loss Guard)",
   "auto_lot": true,
   "balance_per_step": 500.0,
   "lot_per_step": 0.01,
@@ -11,6 +11,8 @@
   "max_open_positions": 3,
   "min_layer_distance_points": 30,
   "min_margin_level_for_grid": 400.0,
+  "use_basket_take_profit": true,
+  "basket_profit_usd": 5.0,
   "enable_scalping_engine": true,
   "enable_swing_engine": true,
   "use_macro_bias_booster": true,
@@ -48,5 +50,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v7.10 Flawless Sovereign Aktif: Directional Discount Layering, Closed M1 Confirmation (No Repaint), Margin Guard 400%, Anti-Late Chase H1, dan Event-Triggered Runner BE Sync."
+  "status_message": "OTA v7.20 Absolute Sovereign Aktif: Basket Take-Profit Grid (Simultaneous Exit), Friday 21:00 Server Clean, Persistent Consecutive Loss Guard, dan Zero-Bottleneck Execution."
 }
