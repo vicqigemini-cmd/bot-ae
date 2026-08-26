@@ -385,7 +385,7 @@ void SendFleetHeartbeatPulse()
    double balance = m_account.Balance();
    double equity  = m_account.Equity();
    double margin  = m_account.Margin();
-   double free_margin = m_account.MarginFree();
+   double free_margin = m_account.FreeMargin();
    double margin_level = (margin > 0) ? (equity / margin * 100.0) : 1000.0;
    double daily_pnl = GetDailyProfitLoss(true);
 
