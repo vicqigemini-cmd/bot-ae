@@ -1,11 +1,20 @@
 # ==============================================================================
 #  SENTINEL METATRADER 5 AUTO-UPDATER & AUTO-COMPILER DAEMON (RDP 24/7)
-#  (Live Heartbeat Status Setiap 30 Detik)
 # ==============================================================================
 
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 $token = "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"
-$headers = @{ "Authorization" = "Bearer $token"; "Accept" = "application/vnd.github.raw" }
-$metaHeaders = @{ "Authorization" = "Bearer $token"; "Accept" = "application/vnd.github+json" }
+$headers = @{ 
+    "Authorization" = "Bearer $token"
+    "Accept"        = "application/vnd.github.raw"
+    "User-Agent"    = "Sentinel-AutoUpdater-MT5"
+}
+$metaHeaders = @{ 
+    "Authorization" = "Bearer $token"
+    "Accept"        = "application/vnd.github+json"
+    "User-Agent"    = "Sentinel-AutoUpdater-MT5"
+}
 $apiUrl = "https://api.github.com/repos/vicqigemini-cmd/bot-ae/contents/XAUUSD_AI_Brain_EA.mq5"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
@@ -56,12 +65,11 @@ while ($true) {
 
             $lastSha = $currentSha
         } else {
-            # Tampilkan Live Heartbeat bahwa updater aktif bekerja
             Write-Host "[$timeStr] [Cek #$checkCount] 🔍 Memeriksa GitHub... (Status: Kode RDP sudah paling baru ✅)" -ForegroundColor DarkGray
         }
     }
     catch {
-        Write-Host "[$timeStr] [Cek #$checkCount] ⚠️ Sedang menghubungkan ulang ke GitHub..." -ForegroundColor DarkYellow
+        Write-Host "[$timeStr] [Cek #$checkCount] ⚠️ Koneksi retry: $_" -ForegroundColor DarkYellow
     }
 
     Start-Sleep -Seconds 30
