@@ -1,102 +1,126 @@
 //+------------------------------------------------------------------+
-//|                                     Discord_Sentinel_EA_MT5.mq5  |
-//| Multi-Timeframe Scalper EA • Bulletproof Edition (v2.35)         |
-//| (Live HUD Dashboard • Max Spread Guard • Daily Guard • OTA Sync) |
+//|                                     XAUUSD_AI_Brain_EA.mq5       |
+//|  AI-Powered Dual-Regime M1/M15 Neural Scalper for Gold (XAUUSD)  |
+//|    (Deep Neural Net • OTA Cloud Sync • Discord Webhook • Guards) |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
-#property copyright "IDX Sentinel Algorithmic Team"
+#property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "2.35"
-#property strict
+#property version   "3.00"
+#property description "EA Scalping M1 Gold (XAUUSD) AI Deep Neural Network dengan Analisis Multi-Timeframe M15 & OTA Cloud Sync"
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
+#include <Trade\SymbolInfo.mqh>
+#include <Trade\AccountInfo.mqh>
 #include <Trade\HistoryOrderInfo.mqh>
 
 #define CLOUD_CONFIG_URL "https://raw.githubusercontent.com/vicqigemini-cmd/bot-ae/main/ea_cloud_config.json"
 
+//--- Enums
+enum ENUM_AI_ENGINE_MODE
+{
+   AI_BUILTIN_NEURAL_NET = 0, // Built-in Deep Neural Network (MLP 7->8->6->3)
+   AI_ONNX_MODEL_FILE    = 1  // Native ONNX Runtime (xauusd_m1_brain.onnx)
+};
+
+enum ENUM_LOT_TYPE
+{
+   LOT_PER_BALANCE  = 0, // Auto-Lot Proporsional ($100 = 0.01 Lot)
+   LOT_FIXED        = 1, // Fixed Lot Size (Lot Tetap)
+   LOT_RISK_PERCENT = 2  // Auto Lot (% Risk dari Equity)
+};
+
 //+------------------------------------------------------------------+
 //| INPUT PARAMETERS                                                 |
 //+------------------------------------------------------------------+
-input group "=== PENGATURAN DISCORD WEBHOOK ==="
-input string   InpDiscordWebhookURL = "https://discord.com/api/webhooks/1542059423999197184/KMcjEnHpAkMwoW8cwbQKdxnYYl4E0q2ENkRy-ICu0ssk_w6y3Eyihy5vNGHKkw1Ys61C"; // URL Webhook Discord Pribadi
-input bool     InpEnableDiscord     = true;                                                                                                                            // Aktifkan Notifikasi Discord
-input string   InpDiscordMention    = "";                                                                                                                              // Tag Mention (Kosongkan untuk channel pribadi)
-input string   InpBotName           = "EA Scalper Cloud Sentinel MT5";                                                                                                 // Nama Bot Discord
+input group "=== 1. DISCORD NOTIFICATION WEBHOOK ==="
+input string              InpDiscordWebhookURL     = "https://discord.com/api/webhooks/1542059423999197184/KMcjEnHpAkMwoW8cwbQKdxnYYl4E0q2ENkRy-ICu0ssk_w6y3Eyihy5vNGHKkw1Ys61C"; // Webhook URL Pribadi
+input bool                InpEnableDiscord         = true;                                                                                                                            // Aktifkan Notifikasi Discord
+input string              InpDiscordMention        = "";                                                                                                                              // Mention Role/User
+input string              InpBotName               = "XAUUSD AI-Brain Sentinel";                                                                                                      // Nama Bot
 
-input group "=== OTA CLOUD AUTO-SYNC (1x PASANG = AUTO UPDATE) ==="
-input bool     InpEnableCloudSync   = true;      // Aktifkan Sinkronisasi Parameter Otomatis dari GitHub
-input int      InpSyncIntervalMin   = 5;         // Interval Cek Update Cloud (Menit)
+input group "=== 2. OTA CLOUD AUTO-SYNC (1x PASANG = AUTO UPDATE) ==="
+input bool                InpEnableCloudSync       = true;                  // Aktifkan Sinkronisasi Parameter Otomatis dari GitHub
+input int                 InpSyncIntervalMin       = 5;                     // Interval Cek Update Cloud (Menit)
 
-input group "=== PROTEKSI SPREAD & NEWS GUARD ==="
-input int      InpMaxSpreadPoints   = 75;        // Maksimum Spread Diizinkan (Points) - Tolak Entry saat News/Rollover
+input group "=== 3. AI BRAIN & ENGINE SETTINGS ==="
+input ENUM_AI_ENGINE_MODE InpAIMode                = AI_BUILTIN_NEURAL_NET; // Mode Engine AI
+input string              InpONNXFileName          = "xauusd_m1_brain.onnx";// Nama File ONNX (jika Mode ONNX)
+input double              InpAIConfidenceThreshold = 0.60;                  // Ambang Keyakinan AI (0.50 - 0.90)
+input ulong               InpMagicNumber           = 202611;                // Magic Number EA
+input string              InpTradeComment          = "AI_Brain_XAU";        // Label Order
 
-input group "=== FILTER SESI TRADING (JAM LIKUIDITAS TINGGI) ==="
-input bool     InpUseTimeFilter     = false;     // Batasi Trading Hanya Jam Aktif (Default False = 24 Jam)
-input int      InpStartHour         = 0;         // Jam Mulai Trading (Server Time)
-input int      InpEndHour           = 24;        // Jam Selesai Trading (Server Time)
+input group "=== 4. MONEY & RISK MANAGEMENT ==="
+input ENUM_LOT_TYPE       InpLotType               = LOT_PER_BALANCE;       // Mode Lot Sizing
+input double              InpFixedLot              = 0.01;                  // Base Lot per Kelipatan
+input double              InpBalanceStep           = 100.0;                 // Saldo per Kelipatan Lot ($100 = 0.01 Lot)
+input double              InpRiskPercent           = 1.0;                   // Risk % per Trade
+input int                 InpStopLossPoints        = 150;                   // Stop Loss (Points, 150 pts = 15 pips)
+input int                 InpTakeProfitPoints      = 300;                   // Take Profit (Points, 300 pts = 30 pips)
+input int                 InpMaxSpreadPoints       = 75;                    // Max Spread Filter (Points)
+input int                 InpMaxOpenPositions      = 1;                     // Max Posisi Scalping Aktif
 
-input group "=== DAILY PROFIT TARGET & MAX LOSS GUARD ==="
-input bool     InpUseDailyGuard     = true;      // Aktifkan Pengaman Target Harian
-input double   InpDailyTargetProfit = 100.0;     // Kunci Profit Harian ($) - Berhenti jika tercapai
-input double   InpDailyMaxLoss      = 50.0;      // Batas Rem Rugi Harian ($) - Berhenti jika tersentuh
+input group "=== 5. BREAK-EVEN & TRAILING STOP ==="
+input bool                InpUseBreakEven          = true;                  // Aktifkan Break-Even (BE)
+input int                 InpBETriggerPoints       = 100;                   // Trigger BE (Points Profit)
+input int                 InpBEProfitPoints        = 20;                    // Kunci Profit BE (Points)
+input bool                InpUseTrailingStop       = true;                  // Aktifkan Trailing Stop
+input int                 InpTrailingStartPoints   = 120;                   // Trailing Start (Points Profit)
+input int                 InpTrailingDistance      = 80;                    // Jarak Trailing Stop (Points)
+input int                 InpTrailingStep          = 20;                    // Step Pergeseran Trailing (Points)
 
-input group "=== AUTO-LOT & MONEY MANAGEMENT ==="
-input bool     InpUseAutoLot        = true;      // Gunakan Auto-Lot Berdasarkan Saldo
-input double   InpBalancePerStep    = 100.0;     // Kelipatan Saldo ($100)
-input double   InpLotPerStep        = 0.01;      // Lot per Kelipatan Saldo (0.01 Lot per $100)
-input double   InpFixedLotSize      = 0.01;      // Lot Tetap (Jika Auto-Lot Dimatikan)
-input int      InpStopLossPips      = 15;        // Stop Loss Scalping (Pips)
-input int      InpTakeProfitPips    = 30;        // Take Profit Scalping (Pips)
-input ulong    InpMagicNumber       = 778899;    // Magic Number EA
-input ulong    InpSlippage          = 10;        // Maksimum Slippage (Points)
+input group "=== 6. DAILY TARGET & MAX LOSS GUARD ==="
+input bool                InpUseDailyGuard         = true;                  // Aktifkan Pengaman Target Harian
+input double              InpDailyTargetProfit     = 100.0;                 // Kunci Profit Harian ($) - Selesai trading
+input double              InpDailyMaxLoss          = 50.0;                  // Batas Rem Rugi Harian ($) - Rem pengaman
 
-input group "=== BIAS TREN (M15) & ENTRY (M1) ==="
-input int      InpM15FastEMA        = 20;        // M15 Fast EMA Period
-input int      InpM15SlowEMA        = 50;        // M15 Slow EMA Period
-input int      InpM1FastEMA         = 7;         // M1 Fast EMA Period
-input int      InpM1SlowEMA         = 14;        // M1 Slow EMA Period
-input int      InpM1RSIPeriod       = 14;        // M1 RSI Period
-input double   InpRSIOverbought     = 80.0;      // M1 RSI Overbought Level
-input double   InpRSIOversold       = 20.0;      // M1 RSI Oversold Level
-
-input group "=== SCALPING TRAILING STOP ==="
-input bool     InpUseTrailingStop   = true;      // Gunakan Trailing Stop Cepat
-input int      InpTrailingStartPips = 10;        // Trailing Dimulai Setelah Profit (Pips)
-input int      InpTrailingStepPips  = 5;         // Jarak Trailing Step (Pips)
+input group "=== 7. AI FEATURE INDICATORS (M15 & M1) ==="
+input int                 InpADX_Period_M15        = 14;                    // M15 ADX Period
+input int                 InpEMA_Fast_M15          = 20;                    // M15 Fast EMA Period
+input int                 InpEMA_Slow_M15          = 50;                    // M15 Slow EMA Period
+input int                 InpBB_Period_M15         = 20;                    // M15 Bollinger Bands Period
+input double              InpBB_Dev_M15            = 2.0;                   // M15 BB Deviation
+input int                 InpEMA_M1                = 13;                    // M1 Fast EMA Period
+input int                 InpRSI_Period_M1         = 14;                    // M1 RSI Period
+input int                 InpBB_Period_M1          = 20;                    // M1 Bollinger Bands Period
+input double              InpBB_Dev_M1             = 2.0;                   // M1 BB Deviation
 
 //--- Dynamic Runtime Cloud Variables
-string         g_current_version    = "2.35";
-bool           g_auto_lot           = true;
-double         g_balance_step       = 100.0;
-double         g_lot_step           = 0.01;
-int            g_sl_pips            = 15;
-int            g_tp_pips            = 30;
-bool           g_use_trailing       = true;
-int            g_trailing_start     = 10;
-int            g_trailing_step      = 5;
-int            g_max_spread         = 75;
-bool           g_use_time_filter    = false;
-int            g_start_hour         = 0;
-int            g_end_hour           = 24;
-bool           g_use_daily_guard    = true;
-double         g_daily_target_usd   = 100.0;
-double         g_daily_max_loss_usd = 50.0;
-int            g_m15_fast_ema       = 20;
-int            g_m15_slow_ema       = 50;
-int            g_m1_fast_ema        = 7;
-int            g_m1_slow_ema        = 14;
+string                    g_current_version        = "3.00";
+double                    g_confidence_thresh      = 0.60;
+double                    g_balance_step           = 100.0;
+double                    g_lot_step               = 0.01;
+int                       g_sl_points              = 150;
+int                       g_tp_points              = 300;
+int                       g_max_spread             = 75;
+bool                      g_use_trailing           = true;
+int                       g_trailing_start         = 120;
+int                       g_trailing_dist          = 80;
+int                       g_trailing_step          = 20;
+bool                      g_use_daily_guard        = true;
+double                    g_daily_target_usd       = 100.0;
+double                    g_daily_max_loss_usd     = 50.0;
 
-//--- Global Handles & Timers
-CTrade         m_trade;
-CPositionInfo  m_position;
-int            m_h_m15_fast_ema;
-int            m_h_m15_slow_ema;
-int            m_h_m1_fast_ema;
-int            m_h_m1_slow_ema;
-int            m_h_m1_rsi;
-datetime       m_last_bar_time;
-datetime       m_last_cloud_sync_time;
+//--- Global Handles & Objects
+CTrade                    m_trade;
+CPositionInfo             m_position;
+CSymbolInfo               m_symbol;
+CAccountInfo              m_account;
+
+int handle_adx_m15   = INVALID_HANDLE;
+int handle_emaF_m15  = INVALID_HANDLE;
+int handle_emaS_m15  = INVALID_HANDLE;
+int handle_bb_m15    = INVALID_HANDLE;
+int handle_ema_m1    = INVALID_HANDLE;
+int handle_rsi_m1    = INVALID_HANDLE;
+int handle_bb_m1     = INVALID_HANDLE;
+
+long onnx_handle     = INVALID_HANDLE;
+bool onnx_loaded     = false;
+
+datetime last_m1_bar_time = 0;
+datetime m_last_cloud_sync_time = 0;
 
 //+------------------------------------------------------------------+
 //| HELPER PARSER JSON                                               |
@@ -152,7 +176,7 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
    string content_header = "";
    if(is_critical && InpDiscordMention != "")
    {
-      content_header = "\"content\": \"🚨 " + InpDiscordMention + " — **[SCALPING ALERT]**\", ";
+      content_header = "\"content\": \"🚨 " + InpDiscordMention + " — **[AI SCALPING ALERT]**\", ";
    }
 
    string payload = "{" + content_header +
@@ -162,7 +186,7 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
                     "\"description\": \"" + description + "\"," +
                     "\"color\": " + IntegerToString(color_hex) + "," +
                     "\"fields\": [" + fields_json + "]," +
-                    "\"footer\": {\"text\": \"EA Scalper Sentinel MT5 • " + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
+                    "\"footer\": {\"text\": \"XAUUSD AI-Brain Sentinel MT5 • " + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
                     "}]}";
 
    char post_data[];
@@ -187,7 +211,7 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
    char post_data[];
    char result_data[];
    string result_headers;
-   string headers = "User-Agent: MetaTrader5-EA\r\n";
+   string headers = "User-Agent: MetaTrader5-AI-EA\r\n";
 
    ResetLastError();
    int res = WebRequest("GET", CLOUD_CONFIG_URL, headers, 5000, post_data, result_data, result_headers);
@@ -200,32 +224,26 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
       {
          bool is_new_version = (cloud_version != g_current_version);
          g_current_version    = cloud_version;
-         g_auto_lot           = ExtractJsonBool(json, "auto_lot", InpUseAutoLot);
-         g_balance_step       = ExtractJsonNumber(json, "balance_per_step", InpBalancePerStep);
-         g_lot_step           = ExtractJsonNumber(json, "lot_per_step", InpLotPerStep);
-         g_sl_pips            = (int)ExtractJsonNumber(json, "stop_loss_pips", InpStopLossPips);
-         g_tp_pips            = (int)ExtractJsonNumber(json, "take_profit_pips", InpTakeProfitPips);
-         g_use_trailing       = ExtractJsonBool(json, "use_trailing_stop", InpUseTrailingStop);
-         g_trailing_start     = (int)ExtractJsonNumber(json, "trailing_start_pips", InpTrailingStartPips);
-         g_trailing_step      = (int)ExtractJsonNumber(json, "trailing_step_pips", InpTrailingStepPips);
+         g_confidence_thresh  = ExtractJsonNumber(json, "ai_confidence_threshold", InpAIConfidenceThreshold);
+         g_balance_step       = ExtractJsonNumber(json, "balance_per_step", InpBalanceStep);
+         g_lot_step           = ExtractJsonNumber(json, "lot_per_step", InpFixedLot);
+         g_sl_points          = (int)ExtractJsonNumber(json, "stop_loss_points", InpStopLossPoints);
+         g_tp_points          = (int)ExtractJsonNumber(json, "take_profit_points", InpTakeProfitPoints);
          g_max_spread         = (int)ExtractJsonNumber(json, "max_spread_points", InpMaxSpreadPoints);
-         g_use_time_filter    = ExtractJsonBool(json, "use_time_filter", InpUseTimeFilter);
-         g_start_hour         = (int)ExtractJsonNumber(json, "start_hour_server", InpStartHour);
-         g_end_hour           = (int)ExtractJsonNumber(json, "end_hour_server", InpEndHour);
+         g_use_trailing       = ExtractJsonBool(json, "use_trailing_stop", InpUseTrailingStop);
          g_use_daily_guard    = ExtractJsonBool(json, "use_daily_guard", InpUseDailyGuard);
          g_daily_target_usd   = ExtractJsonNumber(json, "daily_target_profit_usd", InpDailyTargetProfit);
          g_daily_max_loss_usd = ExtractJsonNumber(json, "daily_max_loss_usd", InpDailyMaxLoss);
-         g_m1_fast_ema        = (int)ExtractJsonNumber(json, "m1_fast_ema", InpM1FastEMA);
-         g_m1_slow_ema        = (int)ExtractJsonNumber(json, "m1_slow_ema", InpM1SlowEMA);
 
          if(is_new_version && !is_initial)
          {
-            string update_fields = "{\"name\": \"🚀 Versi Terbaru\", \"value\": \"`v" + g_current_version + " (Cloud Synchronized)`\", \"inline\": true}," +
-                                   "{\"name\": \"🛡️ Max Spread Guard\", \"value\": \"`" + IntegerToString(g_max_spread) + " Points`\", \"inline\": true}," +
-                                   "{\"name\": \"🎯 Target Baru\", \"value\": \"`SL: " + IntegerToString(g_sl_pips) + " Pips | TP: " + IntegerToString(g_tp_pips) + " Pips`\", \"inline\": true}";
+            string update_fields = "{\"name\": \"🧠 Versi AI Engine\", \"value\": \"`v" + g_current_version + " (Cloud Synced)`\", \"inline\": true}," +
+                                   "{\"name\": \"🎯 AI Confidence Min\", \"value\": \"`" + DoubleToString(g_confidence_thresh * 100.0, 0) + "%`\", \"inline\": true}," +
+                                   "{\"name\": \"🛡️ Max Spread Guard\", \"value\": \"`" + IntegerToString(g_max_spread) + " Pts`\", \"inline\": true}," +
+                                   "{\"name\": \"🎯 Target SL / TP\", \"value\": \"`SL: " + IntegerToString(g_sl_points / 10) + " Pips | TP: " + IntegerToString(g_tp_points / 10) + " Pips`\", \"inline\": true}";
             
-            SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN!", 
-                             "EA di MetaTrader kamu berhasil menyinkronkan strategi & parameter terbaru secara otomatis langsung dari GitHub tanpa perlu re-install!", 
+            SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (AI-BRAIN)!", 
+                             "Parameter AI & Strategi Scalping berhasil diperbarui secara otomatis dari GitHub!", 
                              0x9B59B6, update_fields, false);
          }
       }
@@ -259,89 +277,65 @@ double GetDailyProfitLoss()
 //+------------------------------------------------------------------+
 //| KALKULASI AUTO-LOT ($100 = 0.01 LOT)                             |
 //+------------------------------------------------------------------+
-double CalculateLotSize()
+double CalculateLotSize(double sl_points)
 {
-   if(!g_auto_lot) return InpFixedLotSize;
+   double lot = g_lot_step;
 
-   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-   if(balance <= 0) balance = AccountInfoDouble(ACCOUNT_EQUITY);
-
-   double calculated_lot = (balance / g_balance_step) * g_lot_step;
-
-   double min_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
-   double max_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
-   double step_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
-
-   if(step_lot > 0)
+   if(InpLotType == LOT_PER_BALANCE)
    {
-      calculated_lot = MathFloor(calculated_lot / step_lot) * step_lot;
-   }
-
-   if(calculated_lot < min_lot) calculated_lot = min_lot;
-   if(calculated_lot > max_lot) calculated_lot = max_lot;
-
-   return NormalizeDouble(calculated_lot, 2);
-}
-
-//+------------------------------------------------------------------+
-//| LIVE HUD DASHBOARD ON-CHART WINDOW                               |
-//+------------------------------------------------------------------+
-void UpdateOnChartDashboard(string bias_str, double rsi_val, int spread_val, string status_str)
-{
-   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-   double equity  = AccountInfoDouble(ACCOUNT_EQUITY);
-   double lot     = CalculateLotSize();
-   double daily_pl = GetDailyProfitLoss();
-
-   string spread_status = (spread_val <= g_max_spread) ? "[AMAN ✅]" : "[TERLALU TINGGI 🚫]";
-   int total_pos = 0;
-   for(int i = PositionsTotal() - 1; i >= 0; i--)
-   {
-      if(m_position.SelectByIndex(i))
+      double balance = m_account.Balance();
+      if(balance <= 0) balance = m_account.Equity();
+      if(g_balance_step > 0)
       {
-         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber) total_pos++;
+         lot = MathFloor(balance / g_balance_step) * g_lot_step;
+      }
+   }
+   else if(InpLotType == LOT_RISK_PERCENT && sl_points > 0)
+   {
+      double equity     = m_account.Equity();
+      double risk_money = equity * (InpRiskPercent / 100.0);
+      double tick_value = m_symbol.TickValue();
+      double tick_size  = m_symbol.TickSize();
+      double point      = m_symbol.Point();
+
+      if(tick_size > 0 && tick_value > 0)
+      {
+         double loss_per_lot = (sl_points * point / tick_size) * tick_value;
+         if(loss_per_lot > 0) lot = risk_money / loss_per_lot;
       }
    }
 
-   string hud = "=========================================================\n" +
-                "  ⚡ EA SCALPER CLOUD SENTINEL (BULLETPROOF v" + g_current_version + ") ⚡\n" +
-                "=========================================================\n" +
-                "  💰 Saldo Akun       : $" + DoubleToString(balance, 2) + " | Equity: $" + DoubleToString(equity, 2) + "\n" +
-                "  📈 Auto-Lot Mode    : " + DoubleToString(lot, 2) + " Lot ($" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot)\n" +
-                "  🛡️ Spread Saat Ini  : " + IntegerToString(spread_val) + " Pts (Max: " + IntegerToString(g_max_spread) + " Pts) " + spread_status + "\n" +
-                "  🧭 Bias Tren M15    : " + bias_str + "\n" +
-                "  🎯 Momentum RSI M1  : " + DoubleToString(rsi_val, 1) + " (Zone 45-75)\n" +
-                "  🏆 Profit Hari Ini  : " + ((daily_pl >= 0) ? "+$" : "-$") + DoubleToString(MathAbs(daily_pl), 2) + " (Target: +$" + DoubleToString(g_daily_target_usd, 0) + ")\n" +
-                "  📦 Posisi Aktif     : " + IntegerToString(total_pos) + " Order\n" +
-                "  ☁️ OTA Cloud Status : AKTIF (Auto-Sync tiap " + IntegerToString(InpSyncIntervalMin) + " Menit)\n" +
-                "  📡 Discord Webhook  : TERHUBUNG ✅\n" +
-                "=========================================================\n" +
-                "  🎯 STATUS RADAR     : " + status_str + "\n" +
-                "=========================================================";
+   double lot_step = m_symbol.LotsStep();
+   double min_lot  = m_symbol.LotsMin();
+   double max_lot  = m_symbol.LotsMax();
 
-   Comment(hud);
+   if(lot_step > 0) lot = MathFloor(lot / lot_step) * lot_step;
+   if(lot < min_lot) lot = min_lot;
+   if(lot > max_lot) lot = max_lot;
+
+   return NormalizeDouble(lot, 2);
 }
 
 //+------------------------------------------------------------------+
-//| FORMAT NOTIFIKASI ORDER DISCORD                                  |
+//| FORMAT NOTIFIKASI ORDER DISCORD DENGAN CONFIDENCE AI             |
 //+------------------------------------------------------------------+
-void NotifyOpenTrade(string type, double price, double lot_used, double sl, double tp, ulong ticket, string bias_text, int spread_used)
+void NotifyAITrade(string type, double price, double lot_used, double sl, double tp, ulong ticket, float confidence, int spread_used)
 {
    int embed_color = (type == "BUY") ? 0x2ECC71 : 0xE74C3C;
    string emoji = (type == "BUY") ? "🟢" : "🔴";
 
-   string fields = "{\"name\": \"🏷️ Tipe Order\", \"value\": \"" + emoji + " **" + type + " (Scalp M1)**\", \"inline\": true}," +
-                   "{\"name\": \"🧭 Bias Tren M15\", \"value\": \"`" + bias_text + "`\", \"inline\": true}," +
+   string fields = "{\"name\": \"🏷️ Tipe Order AI\", \"value\": \"" + emoji + " **" + type + " (Scalp M1)**\", \"inline\": true}," +
+                   "{\"name\": \"🧠 AI Confidence\", \"value\": \"**" + DoubleToString(confidence * 100.0f, 1) + "%** 🔥\", \"inline\": true}," +
                    "{\"name\": \"📊 Simbol & Lot\", \"value\": \"`" + _Symbol + "` (**" + DoubleToString(lot_used, 2) + " Lot**)\", \"inline\": true}," +
                    "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(price, _Digits) + "`\", \"inline\": true}," +
-                   "{\"name\": \"🛡️ Stop Loss\", \"value\": \"`" + DoubleToString(sl, _Digits) + "` (-" + IntegerToString(g_sl_pips) + " Pips)\", \"inline\": true}," +
-                   "{\"name\": \"🎯 Take Profit\", \"value\": \"`" + DoubleToString(tp, _Digits) + "` (+" + IntegerToString(g_tp_pips) + " Pips)\", \"inline\": true}," +
+                   "{\"name\": \"🛡️ Stop Loss\", \"value\": \"`" + DoubleToString(sl, _Digits) + "` (-" + IntegerToString(g_sl_points / 10) + " Pips)\", \"inline\": true}," +
+                   "{\"name\": \"🎯 Take Profit\", \"value\": \"`" + DoubleToString(tp, _Digits) + "` (+" + IntegerToString(g_tp_points / 10) + " Pips)\", \"inline\": true}," +
                    "{\"name\": \"🛡️ Spread Saat Entry\", \"value\": \"`" + IntegerToString(spread_used) + " Points` (Aman)\", \"inline\": true}," +
-                   "{\"name\": \"💰 Saldo Akun\", \"value\": \"`$" + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + "`\", \"inline\": true}," +
+                   "{\"name\": \"💰 Saldo Akun\", \"value\": \"`$" + DoubleToString(m_account.Balance(), 2) + "` (Auto-Lot Proporsional)\", \"inline\": true}," +
                    "{\"name\": \"🎫 Ticket ID\", \"value\": \"`#" + IntegerToString(ticket) + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("⚡ EKSEKUSI SCALPING BARU (" + type + ")", 
-                    "Order scalping dieksekusi berdasarkan keselarasan Bias M15 & Trigger M1 dengan proteksi Max Spread Guard.", 
+   SendDiscordEmbed("🧠 AI NEURAL SCALPER EXECUTED (" + type + ")", 
+                    "Deep Neural Network AI mendeteksi probabilitas tinggi (" + DoubleToString(confidence * 100.0f, 1) + "%) pada timeframe M1/M15 Gold.", 
                     embed_color, 
                     fields, false);
 }
@@ -351,45 +345,85 @@ void NotifyOpenTrade(string type, double price, double lot_used, double sl, doub
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   m_trade.SetExpertMagicNumber(InpMagicNumber);
-   m_trade.SetDeviationInPoints(InpSlippage);
+   string sym = _Symbol;
+   StringToUpper(sym);
+   if(StringFind(sym, "XAU") < 0 && StringFind(sym, "GOLD") < 0)
+   {
+      Alert("PERINGATAN: EA 'XAUUSD AI Brain' hanya boleh dipasang pada chart XAUUSD / GOLD!");
+      return INIT_FAILED;
+   }
 
-   g_auto_lot           = InpUseAutoLot;
-   g_balance_step       = InpBalancePerStep;
-   g_lot_step           = InpLotPerStep;
-   g_sl_pips            = InpStopLossPips;
-   g_tp_pips            = InpTakeProfitPips;
-   g_use_trailing       = InpUseTrailingStop;
-   g_trailing_start     = InpTrailingStartPips;
-   g_trailing_step      = InpTrailingStepPips;
+   if(!m_symbol.Name(_Symbol)) return INIT_FAILED;
+   m_symbol.Refresh();
+
+   m_trade.SetExpertMagicNumber(InpMagicNumber);
+   m_trade.SetMarginMode();
+   m_trade.SetTypeFillingBySymbol(_Symbol);
+   m_trade.SetDeviationInPoints(30);
+
+   g_confidence_thresh  = InpAIConfidenceThreshold;
+   g_balance_step       = InpBalanceStep;
+   g_lot_step           = InpFixedLot;
+   g_sl_points          = InpStopLossPoints;
+   g_tp_points          = InpTakeProfitPoints;
    g_max_spread         = InpMaxSpreadPoints;
-   g_use_time_filter    = InpUseTimeFilter;
-   g_start_hour         = InpStartHour;
-   g_end_hour           = InpEndHour;
+   g_use_trailing       = InpUseTrailingStop;
+   g_trailing_start     = InpTrailingStartPoints;
+   g_trailing_dist      = InpTrailingDistance;
+   g_trailing_step      = InpTrailingStep;
    g_use_daily_guard    = InpUseDailyGuard;
    g_daily_target_usd   = InpDailyTargetProfit;
    g_daily_max_loss_usd = InpDailyMaxLoss;
-   g_m1_fast_ema        = InpM1FastEMA;
-   g_m1_slow_ema        = InpM1SlowEMA;
 
    FetchAndApplyCloudConfig(true);
    m_last_cloud_sync_time = TimeCurrent();
 
-   m_h_m15_fast_ema = iMA(_Symbol, PERIOD_M15, InpM15FastEMA, 0, MODE_EMA, PRICE_CLOSE);
-   m_h_m15_slow_ema = iMA(_Symbol, PERIOD_M15, InpM15SlowEMA, 0, MODE_EMA, PRICE_CLOSE);
+   // Handles Indikator M15
+   handle_adx_m15  = iADX(_Symbol, PERIOD_M15, InpADX_Period_M15);
+   handle_emaF_m15 = iMA(_Symbol, PERIOD_M15, InpEMA_Fast_M15, 0, MODE_EMA, PRICE_CLOSE);
+   handle_emaS_m15 = iMA(_Symbol, PERIOD_M15, InpEMA_Slow_M15, 0, MODE_EMA, PRICE_CLOSE);
+   handle_bb_m15   = iBands(_Symbol, PERIOD_M15, InpBB_Period_M15, 0, InpBB_Dev_M15, PRICE_CLOSE);
 
-   m_h_m1_fast_ema  = iMA(_Symbol, PERIOD_M1, InpM1FastEMA, 0, MODE_EMA, PRICE_CLOSE);
-   m_h_m1_slow_ema  = iMA(_Symbol, PERIOD_M1, InpM1SlowEMA, 0, MODE_EMA, PRICE_CLOSE);
-   m_h_m1_rsi       = iRSI(_Symbol, PERIOD_M1, InpM1RSIPeriod, PRICE_CLOSE);
+   // Handles Indikator M1
+   handle_ema_m1   = iMA(_Symbol, PERIOD_M1, InpEMA_M1, 0, MODE_EMA, PRICE_CLOSE);
+   handle_rsi_m1   = iRSI(_Symbol, PERIOD_M1, InpRSI_Period_M1, PRICE_CLOSE);
+   handle_bb_m1    = iBands(_Symbol, PERIOD_M1, InpBB_Period_M1, 0, InpBB_Dev_M1, PRICE_CLOSE);
 
-   if(m_h_m15_fast_ema == INVALID_HANDLE || m_h_m15_slow_ema == INVALID_HANDLE ||
-      m_h_m1_fast_ema == INVALID_HANDLE || m_h_m1_slow_ema == INVALID_HANDLE || m_h_m1_rsi == INVALID_HANDLE)
+   if(handle_adx_m15 == INVALID_HANDLE || handle_emaF_m15 == INVALID_HANDLE ||
+      handle_emaS_m15 == INVALID_HANDLE || handle_bb_m15 == INVALID_HANDLE ||
+      handle_ema_m1 == INVALID_HANDLE || handle_rsi_m1 == INVALID_HANDLE ||
+      handle_bb_m1 == INVALID_HANDLE)
    {
-      Print("❌ Gagal membuat handle indikator.");
+      Print("[ERROR] Gagal inisialisasi indikator!");
       return INIT_FAILED;
    }
 
-   UpdateOnChartDashboard("MEMUAT...", 50.0, 0, "MENYIAPKAN RADAR SCALPING...");
+   // ONNX Initialization
+   if(InpAIMode == AI_ONNX_MODEL_FILE)
+   {
+      onnx_handle = OnnxCreate(InpONNXFileName, ONNX_DEFAULT);
+      if(onnx_handle != INVALID_HANDLE)
+      {
+         const long in_shape[]  = {1, 7};
+         const long out_shape[] = {1, 3};
+         if(OnnxSetInputShape(onnx_handle, 0, in_shape) && OnnxSetOutputShape(onnx_handle, 0, out_shape))
+         {
+            onnx_loaded = true;
+         }
+      }
+   }
+
+   double current_lot = CalculateLotSize(g_sl_points);
+   string startup_fields = "{\"name\": \"🧠 AI Neural Engine\", \"value\": \"`Deep MLP (7->8->6->3)`\", \"inline\": true}," +
+                           "{\"name\": \"🎯 Ambang Keyakinan\", \"value\": \"`Min " + DoubleToString(g_confidence_thresh * 100.0, 0) + "% Confidence`\", \"inline\": true}," +
+                           "{\"name\": \"🛡️ Max Spread Guard\", \"value\": \"`Max " + IntegerToString(g_max_spread) + " Points`\", \"inline\": true}," +
+                           "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Lot: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}," +
+                           "{\"name\": \"🎯 Target SL / TP\", \"value\": \"`SL: " + IntegerToString(g_sl_points / 10) + " Pips | TP: " + IntegerToString(g_tp_points / 10) + " Pips`\", \"inline\": true}," +
+                           "{\"name\": \"☁️ OTA Cloud Sync\", \"value\": \"`v" + g_current_version + " (Active)`\", \"inline\": true}";
+
+   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif!", 
+                    "Expert Advisor bertenaga Deep Neural Network AI siap berburu scalping 24/7 di XAUUSD M1.", 
+                    0x3498DB, startup_fields, false);
 
    return INIT_SUCCEEDED;
 }
@@ -399,56 +433,316 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+   IndicatorRelease(handle_adx_m15);
+   IndicatorRelease(handle_emaF_m15);
+   IndicatorRelease(handle_emaS_m15);
+   IndicatorRelease(handle_bb_m15);
+   IndicatorRelease(handle_ema_m1);
+   IndicatorRelease(handle_rsi_m1);
+   IndicatorRelease(handle_bb_m1);
+
+   if(onnx_handle != INVALID_HANDLE)
+   {
+      OnnxRelease(onnx_handle);
+      onnx_handle = INVALID_HANDLE;
+   }
+
    Comment("");
-   IndicatorRelease(m_h_m15_fast_ema);
-   IndicatorRelease(m_h_m15_slow_ema);
-   IndicatorRelease(m_h_m1_fast_ema);
-   IndicatorRelease(m_h_m1_slow_ema);
-   IndicatorRelease(m_h_m1_rsi);
 }
 
 //+------------------------------------------------------------------+
-//| FUNGSI TRAILING STOP                                             |
+//| EKSTRAKSI FITUR AI (FEATURE ENGINEERING 7 FEATURES)              |
 //+------------------------------------------------------------------+
-void ApplyTrailingStop()
+bool ExtractAIFeatures(float &features[])
 {
-   if(!g_use_trailing) return;
+   double adx_m15[];
+   double emaF_m15[], emaS_m15[];
+   double bb_upper_m15[], bb_lower_m15[], bb_mid_m15[];
+   double ema_m1[];
+   double rsi_m1[];
+   double bb_upper_m1[], bb_lower_m1[];
+   MqlRates rates_m15[], rates_m1[];
 
-   double point = _Point;
-   double trailing_start = g_trailing_start * 10 * point;
-   double trailing_step  = g_trailing_step * 10 * point;
+   ArraySetAsSeries(adx_m15, true);
+   ArraySetAsSeries(emaF_m15, true);
+   ArraySetAsSeries(emaS_m15, true);
+   ArraySetAsSeries(bb_upper_m15, true);
+   ArraySetAsSeries(bb_lower_m15, true);
+   ArraySetAsSeries(bb_mid_m15, true);
+   ArraySetAsSeries(ema_m1, true);
+   ArraySetAsSeries(rsi_m1, true);
+   ArraySetAsSeries(bb_upper_m1, true);
+   ArraySetAsSeries(bb_lower_m1, true);
+   ArraySetAsSeries(rates_m15, true);
+   ArraySetAsSeries(rates_m1, true);
+
+   if(CopyBuffer(handle_adx_m15, 0, 1, 1, adx_m15) <= 0) return false;
+   if(CopyBuffer(handle_emaF_m15, 0, 1, 1, emaF_m15) <= 0) return false;
+   if(CopyBuffer(handle_emaS_m15, 0, 1, 1, emaS_m15) <= 0) return false;
+   if(CopyBuffer(handle_bb_m15, 1, 1, 1, bb_upper_m15) <= 0) return false;
+   if(CopyBuffer(handle_bb_m15, 2, 1, 1, bb_lower_m15) <= 0) return false;
+   if(CopyBuffer(handle_bb_m15, 0, 1, 1, bb_mid_m15) <= 0) return false;
+
+   if(CopyBuffer(handle_ema_m1, 0, 1, 1, ema_m1) <= 0) return false;
+   if(CopyBuffer(handle_rsi_m1, 0, 1, 1, rsi_m1) <= 0) return false;
+   if(CopyBuffer(handle_bb_m1, 1, 1, 1, bb_upper_m1) <= 0) return false;
+   if(CopyBuffer(handle_bb_m1, 2, 1, 1, bb_lower_m1) <= 0) return false;
+
+   if(CopyRates(_Symbol, PERIOD_M15, 1, 1, rates_m15) <= 0) return false;
+   if(CopyRates(_Symbol, PERIOD_M1, 1, 1, rates_m1) <= 0) return false;
+
+   double point = m_symbol.Point();
+   double close_m15 = rates_m15[0].close;
+   double close_m1  = rates_m1[0].close;
+
+   features[0] = (float)MathMin(MathMax(adx_m15[0] / 100.0, 0.0), 1.0);
+   features[1] = (float)((emaF_m15[0] - emaS_m15[0]) / MathMax(close_m15, 1.0) * 100.0);
+   features[2] = (float)((bb_upper_m15[0] - bb_lower_m15[0]) / MathMax(bb_mid_m15[0], 1.0) * 100.0);
+   features[3] = (float)MathMin(MathMax(rsi_m1[0] / 100.0, 0.0), 1.0);
+   features[4] = (float)((close_m1 - ema_m1[0]) / MathMax(point * 100.0, 0.01));
+   double bb_width_m1 = bb_upper_m1[0] - bb_lower_m1[0];
+   features[5] = (float)((bb_width_m1 > 0.0) ? MathMin(MathMax((close_m1 - bb_lower_m1[0]) / bb_width_m1, 0.0), 1.0) : 0.5);
+   features[6] = (float)((double)m_symbol.Spread() / (double)MathMax(g_max_spread, 1));
+
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//| DEEP NEURAL NETWORK AI INFERENCE (MLP)                           |
+//+------------------------------------------------------------------+
+void RunAIBrain(const float &features[], float &prob_neutral, float &prob_buy, float &prob_sell)
+{
+   if(InpAIMode == AI_ONNX_MODEL_FILE && onnx_loaded)
+   {
+      float in_vector[7];
+      for(int i = 0; i < 7; i++) in_vector[i] = features[i];
+      float out_probs[3];
+      if(OnnxRun(onnx_handle, ONNX_NO_CONVERSION, in_vector, out_probs))
+      {
+         prob_neutral = out_probs[0];
+         prob_buy     = out_probs[1];
+         prob_sell    = out_probs[2];
+         return;
+      }
+   }
+
+   // Built-in Deep Neural Network (MLP 7 -> 8 -> 6 -> 3)
+   float h1[8];
+   float W1[7][8] = {
+      { 0.55f, -0.40f,  0.60f, -0.30f,  0.15f,  0.45f, -0.45f,  0.30f},
+      { 1.50f, -1.45f,  1.10f, -1.05f,  0.50f,  1.20f, -1.15f,  0.80f},
+      { 0.35f,  0.40f, -0.30f, -0.35f,  0.60f,  0.25f,  0.20f, -0.15f},
+      { 0.95f, -1.00f,  0.75f, -0.80f, -0.40f,  0.85f, -0.90f,  0.60f},
+      { 1.10f, -1.10f,  0.85f, -0.85f,  0.25f,  0.95f, -1.00f,  0.55f},
+      { 0.85f, -0.90f,  0.65f, -0.70f, -0.50f,  0.75f, -0.75f,  0.45f},
+      {-0.60f, -0.60f, -0.50f, -0.50f,  0.10f, -0.40f, -0.40f, -0.30f}
+   };
+   float B1[8] = {0.1f, 0.1f, -0.05f, -0.05f, 0.0f, 0.05f, 0.05f, 0.0f};
+
+   for(int j = 0; j < 8; j++)
+   {
+      float sum = B1[j];
+      for(int i = 0; i < 7; i++) sum += features[i] * W1[i][j];
+      h1[j] = (sum > 0.0f) ? sum : (0.1f * sum);
+   }
+
+   float h2[6];
+   float W2[8][6] = {
+      { 0.75f, -0.65f,  0.50f, -0.40f,  0.15f,  0.30f},
+      {-0.65f,  0.75f, -0.40f,  0.50f,  0.15f, -0.30f},
+      { 0.40f,  0.40f, -0.25f, -0.25f,  0.50f,  0.15f},
+      { 0.85f, -0.85f,  0.65f, -0.65f, -0.25f,  0.40f},
+      { 0.65f, -0.65f,  0.50f, -0.50f,  0.00f,  0.30f},
+      { 0.50f, -0.50f,  0.40f, -0.40f, -0.15f,  0.15f},
+      {-0.50f,  0.50f, -0.40f,  0.40f,  0.15f, -0.15f},
+      { 0.40f, -0.40f,  0.30f, -0.30f,  0.00f,  0.15f}
+   };
+   float B2[6] = {0.05f, 0.05f, 0.0f, 0.0f, 0.05f, 0.0f};
+
+   for(int k = 0; k < 6; k++)
+   {
+      float sum = B2[k];
+      for(int j = 0; j < 8; j++) sum += h1[j] * W2[j][k];
+      h2[k] = (sum > 0.0f) ? sum : (0.1f * sum);
+   }
+
+   float out_raw[3];
+   float W3[6][3] = {
+      {-0.30f,  1.35f, -1.25f},
+      {-0.30f, -1.25f,  1.35f},
+      { 0.95f, -0.50f, -0.50f},
+      {-0.40f,  1.45f, -1.35f},
+      { 0.60f, -0.25f, -0.25f},
+      {-0.15f,  0.95f, -0.85f}
+   };
+   float B3[3] = {0.25f, -0.12f, -0.12f};
+
+   float max_val = -1e9f;
+   for(int c = 0; c < 3; c++)
+   {
+      out_raw[c] = B3[c];
+      for(int k = 0; k < 6; k++) out_raw[c] += h2[k] * W3[k][c];
+      if(out_raw[c] > max_val) max_val = out_raw[c];
+   }
+
+   float sum_exp = 0.0f;
+   float exp_val[3];
+   for(int c = 0; c < 3; c++)
+   {
+      exp_val[c] = (float)MathExp(out_raw[c] - max_val);
+      sum_exp += exp_val[c];
+   }
+
+   prob_neutral = exp_val[0] / sum_exp;
+   prob_buy     = exp_val[1] / sum_exp;
+   prob_sell    = exp_val[2] / sum_exp;
+}
+
+//+------------------------------------------------------------------+
+//| ON-CHART AI LIVE DASHBOARD                                       |
+//+------------------------------------------------------------------+
+void DisplayAIDashboard(const float &features[], float p_neu, float p_buy, float p_sell)
+{
+   string ai_action = "WAIT / HUNTING...";
+   if(p_buy >= (float)g_confidence_thresh && p_buy > p_sell) ai_action = StringFormat("BUY SIGNAL (%.1f%% Conf)", p_buy * 100.0f);
+   else if(p_sell >= (float)g_confidence_thresh && p_sell > p_buy) ai_action = StringFormat("SELL SIGNAL (%.1f%% Conf)", p_sell * 100.0f);
+
+   string engine_name = (InpAIMode == AI_ONNX_MODEL_FILE && onnx_loaded) ? "ONNX Engine (xauusd_m1_brain.onnx)" : "Built-in Deep Neural Network (MLP)";
+   long current_spread = m_symbol.Spread();
+   string spread_status = (current_spread <= g_max_spread) ? "[AMAN ✅]" : "[TERLALU TINGGI 🚫]";
+   double daily_pl = GetDailyProfitLoss();
+   double lot = CalculateLotSize(g_sl_points);
+
+   string info = "=========================================================\n";
+   info += "       🧠 XAUUSD AI-BRAIN DUAL-REGIME SCALPER v" + g_current_version + "    \n";
+   info += "=========================================================\n";
+   info += StringFormat(" 💰 Balance / Equity : $%.2f / $%.2f\n", m_account.Balance(), m_account.Equity());
+   info += StringFormat(" 📈 Auto-Lot Mode    : %.2f Lot ($%.0f = %.2f Lot)\n", lot, g_balance_step, g_lot_step);
+   info += StringFormat(" 🧠 AI Neural Model  : %s\n", engine_name);
+   info += StringFormat(" 🎯 Ambang Keyakinan : %.0f%% Minimum Confidence\n", g_confidence_thresh * 100.0);
+   info += "---------------------------------------------------------\n";
+   info += " [AI REAL-TIME PROBABILITY METER]\n";
+   info += StringFormat("  🟢 BUY  Probability : %5.1f %%  %s\n", p_buy * 100.0f, (p_buy >= (float)g_confidence_thresh) ? "🔥 [VALID ENTRY]" : "");
+   info += StringFormat("  🔴 SELL Probability : %5.1f %%  %s\n", p_sell * 100.0f, (p_sell >= (float)g_confidence_thresh) ? "🔥 [VALID ENTRY]" : "");
+   info += StringFormat("  ⚪ NEUTRAL / WAIT   : %5.1f %%\n", p_neu * 100.0f);
+   info += StringFormat("  🎯 Status Keputusan : %s\n", ai_action);
+   info += "---------------------------------------------------------\n";
+   info += StringFormat(" 🛡️ Spread Gold      : %d pts (Max: %d pts) %s\n", current_spread, g_max_spread, spread_status);
+   info += StringFormat(" 🏆 Profit Hari Ini  : %s$%.2f (Target: +$%.0f)\n", (daily_pl >= 0) ? "+" : "-", MathAbs(daily_pl), g_daily_target_usd);
+   info += StringFormat(" ☁️ OTA Cloud Status : AKTIF (Auto-Sync tiap %d Menit)\n", InpSyncIntervalMin);
+   info += " 📡 Discord Webhook  : TERHUBUNG ✅\n";
+   info += "=========================================================\n";
+
+   Comment(info);
+}
+
+//+------------------------------------------------------------------+
+//| MANAJEMEN POSISI: BREAK-EVEN & TRAILING STOP                     |
+//+------------------------------------------------------------------+
+void ManageOpenPositions()
+{
+   double point = m_symbol.Point();
 
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
-      if(m_position.SelectByIndex(i))
+      if(!m_position.SelectByIndex(i)) continue;
+      if(m_position.Symbol() != _Symbol) continue;
+      if(m_position.Magic() != InpMagicNumber) continue;
+
+      ulong  ticket       = m_position.Ticket();
+      double open_price   = m_position.PriceOpen();
+      double current_sl   = m_position.StopLoss();
+      double current_tp   = m_position.TakeProfit();
+      double current_bid  = m_symbol.Bid();
+      double current_ask  = m_symbol.Ask();
+
+      if(m_position.PositionType() == POSITION_TYPE_BUY)
       {
-         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
+         double profit_points = (current_bid - open_price) / point;
+
+         // Break-Even
+         if(InpUseBreakEven && profit_points >= InpBETriggerPoints)
          {
-            if(m_position.PositionType() == POSITION_TYPE_BUY)
+            double be_sl = m_symbol.NormalizePrice(open_price + InpBEProfitPoints * point);
+            if(current_sl < be_sl)
             {
-               double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-               if(bid - m_position.PriceOpen() > trailing_start)
-               {
-                  double new_sl = bid - trailing_step;
-                  if(new_sl > m_position.StopLoss() + point)
-                  {
-                     m_trade.PositionModify(m_position.Ticket(), new_sl, m_position.TakeProfit());
-                  }
-               }
-            }
-            else if(m_position.PositionType() == POSITION_TYPE_SELL)
-            {
-               double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-               if(m_position.PriceOpen() - ask > trailing_start)
-               {
-                  double new_sl = ask + trailing_step;
-                  if(new_sl < m_position.StopLoss() - point || m_position.StopLoss() == 0)
-                  {
-                     m_trade.PositionModify(m_position.Ticket(), new_sl, m_position.TakeProfit());
-                  }
-               }
+               m_trade.PositionModify(ticket, be_sl, current_tp);
             }
          }
+
+         // Trailing Stop
+         if(g_use_trailing && profit_points >= g_trailing_start)
+         {
+            double new_sl = m_symbol.NormalizePrice(current_bid - g_trailing_dist * point);
+            if(new_sl > current_sl + g_trailing_step * point)
+            {
+               m_trade.PositionModify(ticket, new_sl, current_tp);
+            }
+         }
+      }
+      else if(m_position.PositionType() == POSITION_TYPE_SELL)
+      {
+         double profit_points = (open_price - current_ask) / point;
+
+         // Break-Even
+         if(InpUseBreakEven && profit_points >= InpBETriggerPoints)
+         {
+            double be_sl = m_symbol.NormalizePrice(open_price - InpBEProfitPoints * point);
+            if(current_sl == 0 || current_sl > be_sl)
+            {
+               m_trade.PositionModify(ticket, be_sl, current_tp);
+            }
+         }
+
+         // Trailing Stop
+         if(g_use_trailing && profit_points >= g_trailing_start)
+         {
+            double new_sl = m_symbol.NormalizePrice(current_ask + g_trailing_dist * point);
+            if(current_sl == 0 || new_sl < current_sl - g_trailing_step * point)
+            {
+               m_trade.PositionModify(ticket, new_sl, current_tp);
+            }
+         }
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| BUKA POSISI ORDER AI                                             |
+//+------------------------------------------------------------------+
+void OpenAIOrder(ENUM_ORDER_TYPE order_type, float confidence)
+{
+   double point = m_symbol.Point();
+   double lot   = CalculateLotSize(g_sl_points);
+   if(lot <= 0) return;
+
+   int current_spread = (int)m_symbol.Spread();
+   string comment_label = StringFormat("%s_%.0f%%", InpTradeComment, confidence * 100.0f);
+
+   if(order_type == ORDER_TYPE_BUY)
+   {
+      double ask = m_symbol.Ask();
+      double sl  = (g_sl_points > 0) ? (ask - g_sl_points * point) : 0;
+      double tp  = (g_tp_points > 0) ? (ask + g_tp_points * point) : 0;
+      sl = m_symbol.NormalizePrice(sl);
+      tp = m_symbol.NormalizePrice(tp);
+
+      if(m_trade.Buy(lot, _Symbol, ask, sl, tp, comment_label))
+      {
+         NotifyAITrade("BUY", ask, lot, sl, tp, m_trade.ResultOrder(), confidence, current_spread);
+      }
+   }
+   else if(order_type == ORDER_TYPE_SELL)
+   {
+      double bid = m_symbol.Bid();
+      double sl  = (g_sl_points > 0) ? (bid + g_sl_points * point) : 0;
+      double tp  = (g_tp_points > 0) ? (bid - g_tp_points * point) : 0;
+      sl = m_symbol.NormalizePrice(sl);
+      tp = m_symbol.NormalizePrice(tp);
+
+      if(m_trade.Sell(lot, _Symbol, bid, sl, tp, comment_label))
+      {
+         NotifyAITrade("SELL", bid, lot, sl, tp, m_trade.ResultOrder(), confidence, current_spread);
       }
    }
 }
@@ -458,6 +752,8 @@ void ApplyTrailingStop()
 //+------------------------------------------------------------------+
 void OnTick()
 {
+   if(!m_symbol.RefreshRates()) return;
+
    // 1. Sinkronisasi berkala dari Cloud GitHub setiap 5 menit
    if(TimeCurrent() - m_last_cloud_sync_time >= InpSyncIntervalMin * 60)
    {
@@ -465,118 +761,54 @@ void OnTick()
       m_last_cloud_sync_time = TimeCurrent();
    }
 
-   ApplyTrailingStop();
+   // 2. Eksekusi Proteksi Posisi (Break-Even & Trailing Stop per tick)
+   ManageOpenPositions();
 
-   int current_spread = (int)SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
+   // 3. Ekstraksi Fitur AI Real-Time
+   float features[7];
+   if(!ExtractAIFeatures(features)) return;
 
-   // Ambil Data Indikator BIAS M15
-   double m15_fast[], m15_slow[];
-   ArraySetAsSeries(m15_fast, true);
-   ArraySetAsSeries(m15_slow, true);
-   CopyBuffer(m_h_m15_fast_ema, 0, 0, 2, m15_fast);
-   CopyBuffer(m_h_m15_slow_ema, 0, 0, 2, m15_slow);
+   // 4. Prediksi Keputusan oleh Otak AI
+   float prob_neutral = 0.0f;
+   float prob_buy     = 0.0f;
+   float prob_sell    = 0.0f;
+   RunAIBrain(features, prob_neutral, prob_buy, prob_sell);
 
-   bool m15_bullish_bias = (m15_fast[0] > m15_slow[0]);
-   bool m15_bearish_bias = (m15_fast[0] < m15_slow[0]);
-   string bias_text = m15_bullish_bias ? "🟢 BULLISH (EMA 20 > EMA 50)" : (m15_bearish_bias ? "🔴 BEARISH (EMA 20 < EMA 50)" : "⚪ NETRAL");
+   // 5. Perbarui On-Chart Live Dashboard
+   DisplayAIDashboard(features, prob_neutral, prob_buy, prob_sell);
 
-   // Ambil Data Indikator ENTRY M1
-   double m1_fast[], m1_slow[], m1_rsi[];
-   ArraySetAsSeries(m1_fast, true);
-   ArraySetAsSeries(m1_slow, true);
-   ArraySetAsSeries(m1_rsi, true);
-   CopyBuffer(m_h_m1_fast_ema, 0, 1, 2, m1_fast);
-   CopyBuffer(m_h_m1_slow_ema, 0, 1, 2, m1_slow);
-   CopyBuffer(m_h_m1_rsi, 0, 1, 2, m1_rsi);
-
-   double current_rsi = (ArraySize(m1_rsi) > 0) ? m1_rsi[0] : 50.0;
-
-   string current_status = "SIAGA 1: MEMANTAU CANDLE M1 UNTUK PERSILANGAN BARU...";
-
-   // Cek Proteksi Daily Profit Target & Max Loss
+   // 6. Cek Proteksi Daily Profit Target & Max Loss
    if(g_use_daily_guard)
    {
       double daily_pl = GetDailyProfitLoss();
-      if(daily_pl >= g_daily_target_usd)
-      {
-         current_status = "🎉 TARGET HARIAN TERPENUHI (+$" + DoubleToString(daily_pl, 2) + ") - LIBUR TRADING!";
-         UpdateOnChartDashboard(bias_text, current_rsi, current_spread, current_status);
-         return;
-      }
-      if(daily_pl <= -g_daily_max_loss_usd)
-      {
-         current_status = "🛡️ REM HARIAN AKTIF (-$" + DoubleToString(MathAbs(daily_pl), 2) + ") - LIBUR TRADING!";
-         UpdateOnChartDashboard(bias_text, current_rsi, current_spread, current_status);
-         return;
-      }
+      if(daily_pl >= g_daily_target_usd || daily_pl <= -g_daily_max_loss_usd) return;
    }
 
-   // Cek Filter Sesi Jam Trading
-   if(g_use_time_filter)
-   {
-      MqlDateTime dt;
-      TimeToStruct(TimeCurrent(), dt);
-      if(dt.hour < g_start_hour || dt.hour >= g_end_hour)
-      {
-         current_status = "⏳ DI LUAR JAM SESI TRADING AKTIF (" + IntegerToString(g_start_hour) + ":00 - " + IntegerToString(g_end_hour) + ":00)";
-         UpdateOnChartDashboard(bias_text, current_rsi, current_spread, current_status);
-         return;
-      }
-   }
+   // 7. Filter Bar Baru M1
+   datetime current_time = iTime(_Symbol, PERIOD_M1, 0);
+   if(current_time == 0 || current_time == last_m1_bar_time) return;
+   last_m1_bar_time = current_time;
 
-   // Update HUD Dashboard Real-Time
-   UpdateOnChartDashboard(bias_text, current_rsi, current_spread, current_status);
+   // 8. Validasi Spread & Maksimal Posisi
+   if(m_symbol.Spread() > g_max_spread) return;
 
-   // Cek Bar Baru di Timeframe M1
-   datetime current_bar_time = iTime(_Symbol, PERIOD_M1, 0);
-   if(current_bar_time == m_last_bar_time) return;
-   m_last_bar_time = current_bar_time;
-
-   // Hanya 1 posisi scalping aktif per waktu
-   int total_orders = 0;
+   int active_orders = 0;
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
       if(m_position.SelectByIndex(i))
       {
-         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
-         {
-            total_orders++;
-         }
+         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber) active_orders++;
       }
    }
+   if(active_orders >= InpMaxOpenPositions) return;
 
-   if(total_orders > 0) return;
-
-   // MAX SPREAD GUARD
-   if(current_spread > g_max_spread)
+   // 9. Eksekusi Keputusan AI
+   if(prob_buy >= (float)g_confidence_thresh && prob_buy > prob_sell)
    {
-      return;
+      OpenAIOrder(ORDER_TYPE_BUY, prob_buy);
    }
-
-   // Hitung Lot Sesuai Saldo Terkini ($100 = 0.01 Lot)
-   double lot_to_trade = CalculateLotSize();
-   double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-   double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   double point = _Point;
-
-   // SINYAL BUY SCALPING:
-   if(m15_bullish_bias && (m1_fast[1] <= m1_slow[1] && m1_fast[0] > m1_slow[0]) && (m1_rsi[0] > 45.0 && m1_rsi[0] < InpRSIOverbought))
+   else if(prob_sell >= (float)g_confidence_thresh && prob_sell > prob_buy)
    {
-      double sl = ask - (g_sl_pips * 10 * point);
-      double tp = ask + (g_tp_pips * 10 * point);
-      if(m_trade.Buy(lot_to_trade, _Symbol, ask, sl, tp, "Scalp BUY M1"))
-      {
-         NotifyOpenTrade("BUY", ask, lot_to_trade, sl, tp, m_trade.ResultOrder(), "Bullish (EMA 20 > EMA 50)", current_spread);
-      }
-   }
-   // SINYAL SELL SCALPING:
-   else if(m15_bearish_bias && (m1_fast[1] >= m1_slow[1] && m1_fast[0] < m1_slow[0]) && (m1_rsi[0] < 55.0 && m1_rsi[0] > InpRSIOversold))
-   {
-      double sl = bid + (g_sl_pips * 10 * point);
-      double tp = bid - (g_tp_pips * 10 * point);
-      if(m_trade.Sell(lot_to_trade, _Symbol, bid, sl, tp, "Scalp SELL M1"))
-      {
-         NotifyOpenTrade("SELL", bid, lot_to_trade, sl, tp, m_trade.ResultOrder(), "Bearish (EMA 20 < EMA 50)", current_spread);
-      }
+      OpenAIOrder(ORDER_TYPE_SELL, prob_sell);
    }
 }
