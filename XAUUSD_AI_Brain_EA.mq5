@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL v15.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
+//|  APEX SOVEREIGN CITADEL v16.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
 //|  (SMC FVG • Golden Pocket 50-61.8% • 1:2.5 RR • Anti-Rungkad)    |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "15.00"
-#property description "Unified Master Brain EA v15.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
+#property version   "16.00"
+#property description "Unified Master Brain EA v16.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -158,8 +158,8 @@ input double              InpMaxPortfolioRiskPct   = 2.0;                   // B
 input int                 InpMaxTotalOpenTradesAll = 3;                     // Batas Maksimal Total Posisi Terbuka Seluruh Portofolio
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "15.00";
-string                    g_last_self_updated_ver  = "15.00";
+string                    g_current_version        = "16.00";
+string                    g_last_self_updated_ver  = "16.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_max_spread             = 70;
@@ -804,6 +804,56 @@ void CalculateH4FibonacciLevels(SFibLevels &out_fib, int lookback_bars=24)
 }
 
 //+------------------------------------------------------------------+
+//| KALIBRASI PARAMETER SWING ADAPTIF (FOREX SWING PLAYBOOK)         |
+//+------------------------------------------------------------------+
+void GetAdaptiveSwingParameters(string symbol, int &out_sl_pts, int &out_tp1_pts, int &out_tp2_pts)
+{
+   string sym = symbol;
+   StringToUpper(sym);
+
+   // 1. GBPJPY & JPY High Volatility Crosses (The Dragon)
+   if(StringFind(sym, "GBPJPY") >= 0 || StringFind(sym, "EURJPY") >= 0 || StringFind(sym, "CADJPY") >= 0)
+   {
+      out_sl_pts  = 800;  // 80 pips
+      out_tp1_pts = 1000; // 100 pips
+      out_tp2_pts = 2500; // 250 pips (RR 1:3.1)
+      return;
+   }
+
+   // 2. Stable Major Forex (EURUSD, AUDUSD, NZDUSD, USDCAD)
+   if(StringFind(sym, "EURUSD") >= 0 || StringFind(sym, "AUDUSD") >= 0 || StringFind(sym, "NZDUSD") >= 0 || StringFind(sym, "USDCAD") >= 0)
+   {
+      out_sl_pts  = 400;  // 40 pips
+      out_tp1_pts = 500;  // 50 pips
+      out_tp2_pts = 1500; // 150 pips (RR 1:3.75)
+      return;
+   }
+
+   // 3. Volatile Major Forex (GBPUSD, USDJPY, USDCHF)
+   if(StringFind(sym, "GBPUSD") >= 0 || StringFind(sym, "USDJPY") >= 0 || StringFind(sym, "USDCHF") >= 0)
+   {
+      out_sl_pts  = 600;  // 60 pips
+      out_tp1_pts = 700;  // 70 pips
+      out_tp2_pts = 2000; // 200 pips (RR 1:3.3)
+      return;
+   }
+
+   // 4. Global Equity Indices (US30, NAS100, SP500, DAX)
+   if(StringFind(sym, "30") >= 0 || StringFind(sym, "100") >= 0 || StringFind(sym, "500") >= 0 || StringFind(sym, "DAX") >= 0 || StringFind(sym, "NAS") >= 0 || StringFind(sym, "DOW") >= 0)
+   {
+      out_sl_pts  = 1000; // 100 pts index
+      out_tp1_pts = 1200; // 120 pts index
+      out_tp2_pts = 3500; // 350 pts index (RR 1:3.5)
+      return;
+   }
+
+   // 5. Default / XAUUSD Gold
+   out_sl_pts  = InpSwingSLPoints;        // 800 pts
+   out_tp1_pts = InpSwingTP1Points;       // 800 pts
+   out_tp2_pts = InpSwingTP2RunnerPoints; // 2400 pts
+}
+
+//+------------------------------------------------------------------+
 //| DETEKSI KELAS ASET (GOLD / FOREX / INDEX)                        |
 //+------------------------------------------------------------------+
 ENUM_ASSET_CLASS GetAssetClass(string symbol)
@@ -1335,7 +1385,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Lot Size Model\", \"value\": \"`" + (InpLotType == LOT_RISK_PERCENT ? "1.0% Equity Risk (" + DoubleToString(current_lot, 2) + " Lot)" : "Fixed/Step") + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v15.00 Anti-Rungkad)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v16.00 Anti-Rungkad)! 🚀", 
                     "Sistem M15 Single-Entry Sniper siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng kuantitatif mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -1618,9 +1668,8 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
    if(lot <= 0) lot = 0.01;
 
    int current_spread = (int)m_symbol.Spread();
-   int swing_sl  = InpSwingSLPoints;
-   int swing_tp1 = InpSwingTP1Points;
-   int swing_tp2 = InpSwingTP2RunnerPoints;
+   int swing_sl = InpSwingSLPoints, swing_tp1 = InpSwingTP1Points, swing_tp2 = InpSwingTP2RunnerPoints;
+   GetAdaptiveSwingParameters(_Symbol, swing_sl, swing_tp1, swing_tp2);
 
    m_trade.SetExpertMagicNumber(InpMagicSwing);
 
@@ -1661,7 +1710,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v15.00)        |
+//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v16.00)        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
@@ -1683,6 +1732,29 @@ void OnTick()
          {
             m_trade.SetExpertMagicNumber(InpMagicSniper);
             m_trade.PositionClose(m_position.Ticket());
+         }
+      }
+   }
+
+   // 3.5 PROTEKSI TRIPLE-SWAP RABU MALAM (23:00 SERVER TIME)
+   if(InpUseTripleSwapGuard)
+   {
+      MqlDateTime dt_swap;
+      TimeToStruct(TimeCurrent(), dt_swap);
+      if(dt_swap.day_of_week == 3 && dt_swap.hour == 23 && dt_swap.min >= 0 && dt_swap.min <= 50)
+      {
+         for(int i = PositionsTotal() - 1; i >= 0; i--)
+         {
+            if(m_position.SelectByIndex(i) && m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicSwing)
+            {
+               if(m_position.Profit() > 0 && m_position.StopLoss() == 0)
+               {
+                  double true_be = CalculateCommissionAwareBE(m_position.PositionType() == POSITION_TYPE_BUY, m_position.PriceOpen(), m_position.Volume(), 10.0);
+                  m_trade.SetExpertMagicNumber(InpMagicSwing);
+                  m_trade.PositionModify(m_position.Ticket(), true_be, m_position.TakeProfit());
+                  Print("🛡️ [TRIPLE-SWAP GUARD] Kunci True-BE sebelum rollover 3x Swap Rabu malam!");
+               }
+            }
          }
       }
    }
