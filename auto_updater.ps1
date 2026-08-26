@@ -27,8 +27,12 @@ $expertFolder = (Get-ChildItem -Path "$env:APPDATA\MetaQuotes\Terminal\*\MQL5\Ex
 Write-Host "[INFO] Folder Experts : $expertFolder" -ForegroundColor Gray
 
 # 2. Cari MetaEditor Compiler
-$metaEditorPath = Get-ChildItem -Path "C:\Program Files*", "C:\Users*" -Include "metaeditor64.exe", "metaeditor.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
-if ($metaEditorPath) {
+$metaEditorPath = "C:\Program Files\MetaTrader 5\MetaEditor64.exe"
+if (-not (Test-Path $metaEditorPath)) {
+    $metaEditorPath = Get-ChildItem -Path "C:\Program Files*", "C:\Users*" -Include "metaeditor64.exe", "metaeditor.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+}
+
+if ($metaEditorPath -and (Test-Path $metaEditorPath)) {
     Write-Host "[INFO] Compiler Aktif : $metaEditorPath" -ForegroundColor Green
 } else {
     Write-Host "[INFO] Compiler Aktif : Mode Standar Terminal" -ForegroundColor Gray
@@ -56,20 +60,20 @@ while ($true) {
             Write-Host "[$timeStr] 📥 File MQ5 berhasil diunduh ke folder Experts!" -ForegroundColor Green
 
             if ($metaEditorPath -and (Test-Path $metaEditorPath)) {
-                Write-Host "[$timeStr] ⚙️ Sedang mengompilasi file .ex5 (F7 Otomatis)..." -ForegroundColor Yellow
-                $argCompile = "/compile:$targetMq5"
-                $argLog = "/log:$expertFolder\compile.log"
-                Start-Process -FilePath $metaEditorPath -ArgumentList @($argCompile, $argLog, "/s") -Wait
+                Write-Host "[$timeStr] ⚙️ Mengompilasi file EX5 di background..." -ForegroundColor Yellow
+                $compileArgs = "/compile:`"$targetMq5`" /log:`"$expertFolder\compile.log`" /s"
+                Start-Process -FilePath $metaEditorPath -ArgumentList $compileArgs -Wait -NoNewWindow
                 Write-Host "[$timeStr] 🎉 KOMPILASI SUKSES! EA di chart MetaTrader otomatis ter-update!" -ForegroundColor Green
             }
 
             $lastSha = $currentSha
         } else {
-            Write-Host "[$timeStr] [Cek #$checkCount] 🔍 Memeriksa GitHub... (Status: Kode RDP sudah paling baru ✅)" -ForegroundColor DarkGray
+            Write-Host "[$timeStr] [Cek #$checkCount] 🔍 Memeriksa GitHub... (Status: Kode RDP sudah paling baru)" -ForegroundColor DarkGray
         }
     }
     catch {
-        Write-Host "[$timeStr] [Cek #$checkCount] ⚠️ Koneksi retry: $_" -ForegroundColor DarkYellow
+        $err = $_.Exception.Message
+        Write-Host "[$timeStr] [Cek #$checkCount] ⚠️ Koneksi info: $err" -ForegroundColor DarkYellow
     }
 
     Start-Sleep -Seconds 30
