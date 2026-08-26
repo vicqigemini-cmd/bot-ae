@@ -1,7 +1,7 @@
 {
-  "version": "5.20",
+  "version": "5.30",
   "sync_interval_min": 5,
-  "engine_name": "XAUUSD Apex Active Scalper Engine (Exact History Match)",
+  "engine_name": "XAUUSD Apex Fleet Scalper Engine (Zero-Bottleneck)",
   "auto_lot": true,
   "balance_per_step": 500.0,
   "lot_per_step": 0.01,
@@ -30,5 +30,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v5.20 Aktif - Exact History Sync: Kalkulasi PnL Harian 100% Cocok Persis dengan Tab History MT5 (DEAL_ENTRY_OUT)."
+  "status_message": "OTA v5.30 Aktif - Enterprise Fleet Edition: Identifikasi Akun ID Unik, Heartbeat Pulse, dan Arsitektur Zero-Bottleneck."
 }
