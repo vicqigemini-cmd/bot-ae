@@ -1,7 +1,7 @@
 {
-  "version": "9.00",
+  "version": "9.10",
   "sync_interval_min": 5,
-  "engine_name": "XAUUSD Apex Infinite Sovereign Master (Adaptive Grid + 5-Min Cooldown + Smart Retry + Weekly Defender)",
+  "engine_name": "XAUUSD Apex Infinite Sovereign Master (Unique Fingerprint Fleet ID Edition)",
   "auto_lot": true,
   "balance_per_step": 500.0,
   "lot_per_step": 0.01,
@@ -49,5 +49,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v9.00 Apex Infinite Sovereign Aktif: Adaptive ATR Grid Spacing, Fast 5-Min Cooldown, Smart Execution Retry, Weekly Bag Defender (+20%), Pure Fleet ID (ACC-[Login]), No-BE Full Target, dan 1:3 Swing RR."
+  "status_message": "OTA v9.10 Unique Fingerprint Fleet ID Aktif: Anti-Duplicate ID Otomatis (ACC-[Login]-[BrokerCode]), Volatility-Adaptive Grid, 5-Min Cooldown, Smart Execution Retry, Weekly Bag Defender, No-BE Full Target, dan 1:3 Swing RR."
 }
