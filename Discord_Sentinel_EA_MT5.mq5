@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX QUANTITATIVE INSTITUTIONAL GOLD SCALPER (XAUUSD) - v5.20   |
-//|  (Exact History Match • Micro-Pullback Sniper • Session VWAP)    |
+//|  APEX ENTERPRISE FLEET EDITION GOLD SCALPER (XAUUSD) - v5.30     |
+//|  (Zero Bottleneck • Account ID Fleet Monitor • Heartbeat Pulse)  |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "5.20"
-#property description "EA Scalping M1 Gold (XAUUSD) Apex Edition. Kalkulasi PnL Harian 100% Sama dengan Tab History MT5 (DEAL_ENTRY_OUT), Micro-Pullback Sniper, Session VWAP, Tri-Layer."
+#property version   "5.30"
+#property description "EA Scalping M1 Gold (XAUUSD) Enterprise Fleet Edition. Zero-Bottleneck Architecture, Account ID Tagging, Hourly Heartbeat Fleet Pulse, Exact MT5 History Sync."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -44,17 +44,22 @@ struct STrackedPos
 //+------------------------------------------------------------------+
 //| INPUT PARAMETERS                                                 |
 //+------------------------------------------------------------------+
-input group "=== 1. DISCORD NOTIFICATION WEBHOOK ==="
-input string              InpDiscordWebhookURL     = "https://discord.com/api/webhooks/1542059423999197184/KMcjEnHpAkMwoW8cwbQKdxnYYl4E0q2ENkRy-ICu0ssk_w6y3Eyihy5vNGHKkw1Ys61C"; // Webhook URL Pribadi
-input bool                InpEnableDiscord         = true;                                                                                                                            // Aktifkan Notifikasi Discord
-input string              InpDiscordMention        = "";                                                                                                                              // Mention Role/User
-input string              InpBotName               = "XAUUSD Apex Active Sentinel";                                                                                                   // Nama Bot
+input group "=== 1. IDENTITAS AKUN & FLEET MONITORING ==="
+input string              InpAccountTag            = "ACC-01";              // Tag / Nama Unik Akun (misal: ACC-01-ICM, ACC-02-EXN)
+input bool                InpEnableHeartbeat       = true;                  // Aktifkan Notifikasi Detak Jantung (Heartbeat Pulse)
+input int                 InpHeartbeatIntervalHours= 2;                     // Interval Heartbeat ke Discord (Jam)
 
-input group "=== 2. OTA CLOUD AUTO-SYNC (1x PASANG = AUTO UPDATE) ==="
+input group "=== 2. DISCORD NOTIFICATION WEBHOOK ==="
+input string              InpDiscordWebhookURL     = "https://discord.com/api/webhooks/1542059423999197184/KMcjEnHpAkMwoW8cwbQKdxnYYl4E0q2ENkRy-ICu0ssk_w6y3Eyihy5vNGHKkw1Ys61C"; // Webhook URL Pribadi
+input bool                InpEnableDiscord         = true;                  // Aktifkan Notifikasi Discord
+input string              InpDiscordMention        = "";                    // Mention Role/User
+input string              InpBotName               = "XAUUSD Apex Fleet Sentinel"; // Nama Bot
+
+input group "=== 3. OTA CLOUD AUTO-SYNC (1x PASANG = AUTO UPDATE) ==="
 input bool                InpEnableCloudSync       = true;                  // Aktifkan Sinkronisasi Cloud dari GitHub
 input int                 InpSyncIntervalMin       = 5;                     // Interval Cek Update Cloud (Menit)
 
-input group "=== 3. 5 PILAR KUANTITATIF & RESPONSIVITAS TINGGI ==="
+input group "=== 4. 5 PILAR KUANTITATIF & RESPONSIVITAS TINGGI ==="
 input ulong               InpMagicNumber           = 202611;                // Magic Number EA
 input string              InpTradeComment          = "Apex_XAU";            // Label Order
 input bool                InpUseRegimeSwitching    = true;                  // Pilar 1: Auto-Switch Strategi (Pullback vs Mean Reversion)
@@ -64,7 +69,7 @@ input bool                InpUseTripleScreen       = false;                 // P
 input bool                InpUseDefendTheBag       = true;                  // Pilar 5: Defend-The-Bag (Kunci Cuan Harian >= 8%)
 input double              InpDefendBagProfitPct    = 8.0;                   // Ambang Defend-The-Bag (% Wallet untuk Pangkas 50% Lot)
 
-input group "=== 4. PERISAI PENGAMAN & CIRCUIT BREAKERS ==="
+input group "=== 5. PERISAI PENGAMAN & CIRCUIT BREAKERS ==="
 input bool                InpUseRedNewsGuard       = true;                  // Perisai Berita Merah AS (CPI, NFP, FOMC)
 input int                 InpNewsBufferMin         = 15;                    // Jeda Menit Sebelum & Sesudah Berita Merah
 input bool                InpUseFridayAutoClean    = true;                  // Bersihkan Semua Posisi Setiap Jumat Malam (21:00)
@@ -74,7 +79,7 @@ input bool                InpUseRolloverGuard      = true;                  // P
 input int                 InpMaxOpenPositions      = 3;                     // Max Posisi Scalping Aktif (Tri-Layer Sweet Spot)
 input int                 InpMinLayerDistancePts   = 30;                    // Jarak Minimal Antar Layer (Points, 30 pts = 3 pips)
 
-input group "=== 5. MONEY & RISK MANAGEMENT ==="
+input group "=== 6. MONEY & RISK MANAGEMENT ==="
 input ENUM_LOT_TYPE       InpLotType               = LOT_PER_BALANCE;       // Mode Lot Sizing
 input double              InpFixedLot              = 0.01;                  // Base Lot per Kelipatan
 input double              InpBalanceStep           = 500.0;                 // Saldo per Kelipatan Lot ($500 = 0.01 Lot)
@@ -83,7 +88,7 @@ input int                 InpBaseSLPoints          = 120;                   // B
 input int                 InpBaseTPPoints          = 200;                   // Base Take Profit (Points, 200 pts = 20 pips)
 input int                 InpMaxSpreadPoints       = 80;                    // Max Spread Filter (Points)
 
-input group "=== 6. FAST BREAK-EVEN & AGGRESSIVE TRAILING ==="
+input group "=== 7. FAST BREAK-EVEN & AGGRESSIVE TRAILING ==="
 input bool                InpUseBreakEven          = true;                  // Aktifkan Break-Even Cepat
 input int                 InpBETriggerPoints       = 80;                    // Trigger BE (Points Profit, 80 pts = 8 pips)
 input int                 InpBEProfitPoints        = 15;                    // Kunci Profit BE (Points, 15 pts = 1.5 pips)
@@ -92,13 +97,13 @@ input int                 InpTrailingStartPoints   = 100;                   // T
 input int                 InpTrailingDistance      = 60;                    // Jarak Trailing Stop (Points, 60 pts = 6 pips)
 input int                 InpTrailingStep          = 15;                    // Step Pergeseran Trailing (Points)
 
-input group "=== 7. DAILY TARGET & MAX LOSS GUARD (% WALLET) ==="
-input bool                InpUseDailyGuard         = false;                 // Aktifkan Pengaman Target Harian (Default Off agar EA tetap trading aktif)
+input group "=== 8. DAILY TARGET & MAX LOSS GUARD (% WALLET) ==="
+input bool                InpUseDailyGuard         = false;                 // Aktifkan Pengaman Target Harian
 input double              InpDailyTargetPercent    = 15.0;                  // Target Profit Harian (15% dari Total Wallet)
 input double              InpDailyMaxLossPercent   = 15.0;                  // Batas Rem Rugi Harian (15% dari Total Wallet)
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "5.20";
+string                    g_current_version        = "5.30";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_sl_points              = 120;
@@ -129,15 +134,49 @@ int handle_ema50_m15 = INVALID_HANDLE;
 
 datetime last_trade_time = 0;
 datetime m_last_cloud_sync_time = 0;
+datetime g_last_heartbeat_time = 0;
 datetime g_cooldown_until = 0;
 int      g_consecutive_losses = 0;
+
+//--- ZERO-BOTTLENECK CACHE ENGINE
+datetime g_last_vwap_calc_time = 0;
+double   g_cached_vwap = 0.0;
+double   g_cached_vwap_up = 0.0;
+double   g_cached_vwap_low = 0.0;
+
+datetime g_last_pnl_calc_time = 0;
+double   g_cached_daily_pnl = 0.0;
+
+datetime g_last_news_check_time = 0;
+bool     g_cached_is_news_time = false;
 
 double   g_asian_high = 0.0;
 double   g_asian_low  = 0.0;
 datetime g_asian_date = 0;
+datetime g_last_asian_calc_time = 0;
 
 STrackedPos g_tracked_positions[];
 ulong g_notified_deals[];
+
+//--- Account Metadata Cache
+string g_account_display_id = "";
+string g_account_company    = "";
+string g_account_server     = "";
+long   g_account_login      = 0;
+string g_account_trade_mode = "";
+
+//+------------------------------------------------------------------+
+//| HELPER: GENERATE ACCOUNT IDENTIFIER STRING                       |
+//+------------------------------------------------------------------+
+void InitAccountMetadata()
+{
+   g_account_login      = AccountInfoInteger(ACCOUNT_LOGIN);
+   g_account_company    = AccountInfoString(ACCOUNT_COMPANY);
+   g_account_server     = AccountInfoString(ACCOUNT_SERVER);
+   g_account_trade_mode = (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_REAL) ? "REAL" : "DEMO";
+
+   g_account_display_id = StringFormat("%s [#%d • %s (%s)]", InpAccountTag, g_account_login, g_account_company, g_account_trade_mode);
+}
 
 //+------------------------------------------------------------------+
 //| HELPER PARSER JSON                                               |
@@ -193,17 +232,19 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
    string content_header = "";
    if(is_critical && InpDiscordMention != "")
    {
-      content_header = "\"content\": \"🚨 " + InpDiscordMention + " — **[APEX QUANT ALERT]**\", ";
+      content_header = "\"content\": \"🚨 " + InpDiscordMention + " — **[APEX QUANT ALERT - " + InpAccountTag + "]**\", ";
    }
 
+   string bot_name_with_tag = InpBotName + " [" + InpAccountTag + "]";
+
    string payload = "{" + content_header +
-                    "\"username\": \"" + InpBotName + "\"," +
+                    "\"username\": \"" + bot_name_with_tag + "\"," +
                     "\"embeds\": [{" +
                     "\"title\": \"" + title + "\"," +
                     "\"description\": \"" + description + "\"," +
                     "\"color\": " + IntegerToString(color_hex) + "," +
                     "\"fields\": [" + fields_json + "]," +
-                    "\"footer\": {\"text\": \"XAUUSD Apex Active Sentinel MT5 v" + g_current_version + " • " + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
+                    "\"footer\": {\"text\": \"Akun: " + InpAccountTag + " (#" + IntegerToString(g_account_login) + ") • v" + g_current_version + " • " + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
                     "}]}";
 
    char post_data[];
@@ -215,7 +256,48 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
    ArrayResize(post_data, ArraySize(post_data) - 1);
 
    ResetLastError();
-   WebRequest("POST", InpDiscordWebhookURL, headers, 5000, post_data, result_data, result_headers);
+   WebRequest("POST", InpDiscordWebhookURL, headers, 3000, post_data, result_data, result_headers);
+}
+
+//+------------------------------------------------------------------+
+//| HITUNG PROFIT / LOSS HARIAN (100% PERSIS TAB HISTORY MT5)        |
+//+------------------------------------------------------------------+
+double GetDailyProfitLoss(bool force_recalc=false)
+{
+   // BOTTLENECK FIX: Cache PnL selama 3 detik kecuali dipaksa hitung ulang saat penutupan transaksi
+   datetime now = TimeCurrent();
+   if(!force_recalc && (now - g_last_pnl_calc_time < 3))
+   {
+      return g_cached_daily_pnl;
+   }
+
+   datetime start_of_day = StringToTime(TimeToString(now, TIME_DATE) + " 00:00");
+   HistorySelect(start_of_day, now + 60);
+   
+   double total_profit = 0.0;
+   int deals = HistoryDealsTotal();
+   for(int i = 0; i < deals; i++)
+   {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(ticket > 0)
+      {
+         long deal_entry = HistoryDealGetInteger(ticket, DEAL_ENTRY);
+         long deal_type  = HistoryDealGetInteger(ticket, DEAL_TYPE);
+
+         // HANYA deal penutupan posisi (sama persis dengan rumus tab History MT5)
+         if((deal_entry == DEAL_ENTRY_OUT || deal_entry == DEAL_ENTRY_INOUT || deal_entry == DEAL_ENTRY_OUT_BY) &&
+            (deal_type == DEAL_TYPE_BUY || deal_type == DEAL_TYPE_SELL))
+         {
+            total_profit += HistoryDealGetDouble(ticket, DEAL_PROFIT) + 
+                            HistoryDealGetDouble(ticket, DEAL_SWAP) + 
+                            HistoryDealGetDouble(ticket, DEAL_COMMISSION);
+         }
+      }
+   }
+
+   g_cached_daily_pnl = NormalizeDouble(total_profit, 2);
+   g_last_pnl_calc_time = now;
+   return g_cached_daily_pnl;
 }
 
 //+------------------------------------------------------------------+
@@ -231,7 +313,7 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
    string headers = "User-Agent: MetaTrader5-AI-EA\r\n";
 
    ResetLastError();
-   int res = WebRequest("GET", CLOUD_CONFIG_URL, headers, 5000, post_data, result_data, result_headers);
+   int res = WebRequest("GET", CLOUD_CONFIG_URL, headers, 3000, post_data, result_data, result_headers);
    if(res == 200)
    {
       string json = CharArrayToString(result_data, 0, WHOLE_ARRAY, CP_UTF8);
@@ -257,16 +339,16 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
          {
             double cur_bal = m_account.Balance();
             double target_usd = cur_bal * (g_daily_target_pct / 100.0);
-            double loss_usd = cur_bal * (g_daily_max_loss_pct / 100.0);
 
-            string update_fields = "{\"name\": \"⚡ Apex Engine\", \"value\": \"`v" + g_current_version + " (Exact History Match)`\", \"inline\": true}," +
+            string update_fields = "{\"name\": \"🏷️ Account Tag\", \"value\": \"`" + InpAccountTag + "` (#" + IntegerToString(g_account_login) + ")\", \"inline\": true}," +
+                                   "{\"name\": \"⚡ Apex Engine\", \"value\": \"`v" + g_current_version + " (Fleet Active)`\", \"inline\": true}," +
                                    "{\"name\": \"🎯 Target Harian\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (" + DoubleToString(g_daily_target_pct, 0) + "% Wallet)`\", \"inline\": true}," +
                                    "{\"name\": \"📊 Sinkronisasi PnL\", \"value\": \"`100% Persis Tab History MT5`\", \"inline\": true}," +
-                                   "{\"name\": \"⚡ Micro-Pullback Sniper\", \"value\": \"`Aktif M1 Dip & Stoch Hook`\", \"inline\": true}," +
+                                   "{\"name\": \"⚡ Zero-Bottleneck\", \"value\": \"`Non-Blocking Timer Execution`\", \"inline\": true}," +
                                    "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot`\", \"inline\": true}";
             
-            SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (APEX v" + g_current_version + ")!", 
-                             "Kalkulasi PnL Harian 100% akurat sesuai tab History MT5 resmi diterapkan!", 
+            SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (v" + g_current_version + ")!", 
+                             "Pembaruan konfigurasi cloud diterapkan otomatis ke akun " + InpAccountTag + "!", 
                              0x9B59B6, update_fields, false);
          }
       }
@@ -274,84 +356,120 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
 }
 
 //+------------------------------------------------------------------+
-//| HITUNG PROFIT / LOSS HARIAN (100% PERSIS TAB HISTORY MT5)        |
+//| DETAK JANTUNG FLEET MONITOR (PERIODIC HEARTBEAT PULSE)           |
 //+------------------------------------------------------------------+
-double GetDailyProfitLoss()
+void SendFleetHeartbeatPulse()
 {
-   // Ambil awal hari server (00:00 hari ini)
-   datetime start_of_day = StringToTime(TimeToString(TimeCurrent(), TIME_DATE) + " 00:00");
-   HistorySelect(start_of_day, TimeCurrent() + 60);
-   
-   double total_profit = 0.0;
-   int deals = HistoryDealsTotal();
-   for(int i = 0; i < deals; i++)
-   {
-      ulong ticket = HistoryDealGetTicket(i);
-      if(ticket > 0)
-      {
-         long deal_entry = HistoryDealGetInteger(ticket, DEAL_ENTRY);
-         long deal_type  = HistoryDealGetInteger(ticket, DEAL_TYPE);
+   if(!InpEnableHeartbeat || !InpEnableDiscord) return;
 
-         // HANYA hitung deal penutupan posisi (sama persis dengan rumus tab History MT5)
-         if((deal_entry == DEAL_ENTRY_OUT || deal_entry == DEAL_ENTRY_INOUT || deal_entry == DEAL_ENTRY_OUT_BY) &&
-            (deal_type == DEAL_TYPE_BUY || deal_type == DEAL_TYPE_SELL))
+   double balance = m_account.Balance();
+   double equity  = m_account.Equity();
+   double margin  = m_account.Margin();
+   double free_margin = m_account.MarginFree();
+   double margin_level = (margin > 0) ? (equity / margin * 100.0) : 1000.0;
+   double daily_pnl = GetDailyProfitLoss(true);
+
+   int total_active = 0;
+   int buy_count = 0;
+   int sell_count = 0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      if(m_position.SelectByIndex(i))
+      {
+         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
          {
-            total_profit += HistoryDealGetDouble(ticket, DEAL_PROFIT) + 
-                            HistoryDealGetDouble(ticket, DEAL_SWAP) + 
-                            HistoryDealGetDouble(ticket, DEAL_COMMISSION);
+            total_active++;
+            if(m_position.PositionType() == POSITION_TYPE_BUY) buy_count++;
+            else if(m_position.PositionType() == POSITION_TYPE_SELL) sell_count++;
          }
       }
    }
-   return NormalizeDouble(total_profit, 2);
+
+   string position_status = (total_active == 0) ? "`0 Posisi (Standby Hunting)`" :
+                            StringFormat("`%d Posisi (%d BUY, %d SELL)`", total_active, buy_count, sell_count);
+
+   string ea_state = "🟢 HUNTING AKTIF (M1 Real-Time)";
+   if(TimeCurrent() < g_cooldown_until) ea_state = "⏳ COOLDOWN PAUSE (30 Mnt)";
+   else if(g_cached_is_news_time) ea_state = "🚨 RED NEWS PAUSE";
+
+   string heartbeat_fields = "{\"name\": \"🏷️ Account Tag & ID\", \"value\": \"**`" + InpAccountTag + "`** (`#" + IntegerToString(g_account_login) + " - " + g_account_company + "`)\", \"inline\": false}," +
+                             "{\"name\": \"🏦 Saldo / Equity\", \"value\": \"`$" + DoubleToString(balance, 2) + " / $" + DoubleToString(equity, 2) + "`\", \"inline\": true}," +
+                             "{\"name\": \"🏆 PnL Hari Ini (History)\", \"value\": \"`" + ((daily_pnl >= 0) ? "+$" : "-$") + DoubleToString(MathAbs(daily_pnl), 2) + "`\", \"inline\": true}," +
+                             "{\"name\": \"🛡️ Margin Level\", \"value\": \"`" + DoubleToString(margin_level, 1) + "%` (Free: $" + DoubleToString(free_margin, 2) + ")\", \"inline\": true}," +
+                             "{\"name\": \"⚡ Posisi Berjalan\", \"value\": \"" + position_status + "\", \"inline\": true}," +
+                             "{\"name\": \"🧠 Status Engine\", \"value\": \"`" + ea_state + "`\", \"inline\": true}," +
+                             "{\"name\": \"📶 Versi & Ping\", \"value\": \"`v" + g_current_version + " • " + g_account_trade_mode + "`\", \"inline\": true}";
+
+   SendDiscordEmbed("💓 FLEET HEARTBEAT MONITOR PULSE (" + InpAccountTag + ")", 
+                    "Laporan status kesehatan & performa akun real-time berjalan normal 100%.", 
+                    0x2ECC71, heartbeat_fields, false);
 }
 
 //+------------------------------------------------------------------+
-//| HITUNG SESSION VWAP & STANDAR DEVIASI                            |
+//| HITUNG SESSION VWAP & STANDAR DEVIASI (ZERO-BOTTLENECK CACHE)    |
 //+------------------------------------------------------------------+
 void CalculateSessionVWAP(double &vwap, double &upper_band, double &lower_band)
 {
+   datetime now = TimeCurrent();
+
+   // BOTTLENECK FIX: Hanya hitung ulang VWAP setiap 10 detik atau jika belum ada data
+   if(now - g_last_vwap_calc_time < 10 && g_cached_vwap > 0)
+   {
+      vwap = g_cached_vwap;
+      upper_band = g_cached_vwap_up;
+      lower_band = g_cached_vwap_low;
+      return;
+   }
+
    vwap = m_symbol.Bid();
    upper_band = vwap + 120 * m_symbol.Point();
    lower_band = vwap - 120 * m_symbol.Point();
 
-   datetime start_of_day = StringToTime(TimeToString(TimeCurrent(), TIME_DATE) + " 00:00");
+   datetime start_of_day = StringToTime(TimeToString(now, TIME_DATE) + " 00:00");
    MqlRates rates[];
    ArraySetAsSeries(rates, true);
-   int copied = CopyRates(_Symbol, PERIOD_M1, start_of_day, TimeCurrent(), rates);
-   if(copied <= 5) return;
-
-   double cum_vol_price = 0.0;
-   long   cum_volume    = 0;
-   for(int i = 0; i < copied; i++)
+   int copied = CopyRates(_Symbol, PERIOD_M1, start_of_day, now, rates);
+   if(copied > 5)
    {
-      double typical_price = (rates[i].high + rates[i].low + rates[i].close) / 3.0;
-      long vol = (rates[i].tick_volume > 0) ? rates[i].tick_volume : 1;
-      cum_vol_price += typical_price * vol;
-      cum_volume += vol;
-   }
-
-   if(cum_volume > 0)
-   {
-      vwap = cum_vol_price / cum_volume;
-
-      double sum_sq_diff = 0.0;
+      double cum_vol_price = 0.0;
+      long   cum_volume    = 0;
       for(int i = 0; i < copied; i++)
       {
-         double tp = (rates[i].high + rates[i].low + rates[i].close) / 3.0;
-         sum_sq_diff += MathPow(tp - vwap, 2.0);
+         double typical_price = (rates[i].high + rates[i].low + rates[i].close) / 3.0;
+         long vol = (rates[i].tick_volume > 0) ? rates[i].tick_volume : 1;
+         cum_vol_price += typical_price * vol;
+         cum_volume += vol;
       }
-      double std_dev = MathSqrt(sum_sq_diff / copied);
-      upper_band = vwap + 1.2 * std_dev;
-      lower_band = vwap - 1.2 * std_dev;
+
+      if(cum_volume > 0)
+      {
+         vwap = cum_vol_price / cum_volume;
+
+         double sum_sq_diff = 0.0;
+         for(int i = 0; i < copied; i++)
+         {
+            double tp = (rates[i].high + rates[i].low + rates[i].close) / 3.0;
+            sum_sq_diff += MathPow(tp - vwap, 2.0);
+         }
+         double std_dev = MathSqrt(sum_sq_diff / copied);
+         upper_band = vwap + 1.2 * std_dev;
+         lower_band = vwap - 1.2 * std_dev;
+      }
    }
+
+   g_cached_vwap       = vwap;
+   g_cached_vwap_up    = upper_band;
+   g_cached_vwap_low   = lower_band;
+   g_last_vwap_calc_time = now;
 }
 
 //+------------------------------------------------------------------+
-//| TRACKING ASIAN RANGE (07:00 - 13:00 WIB)                         |
+//| TRACKING ASIAN RANGE (ZERO-BOTTLENECK CACHE)                     |
 //+------------------------------------------------------------------+
 void UpdateAsianRange()
 {
-   datetime today_date = StringToTime(TimeToString(TimeCurrent(), TIME_DATE));
+   datetime now = TimeCurrent();
+   datetime today_date = StringToTime(TimeToString(now, TIME_DATE));
    if(g_asian_date != today_date)
    {
       g_asian_high = 0.0;
@@ -359,15 +477,18 @@ void UpdateAsianRange()
       g_asian_date = today_date;
    }
 
+   // BOTTLENECK FIX: Hanya hitung ulang setiap 60 detik selama sesi Asian
+   if(now - g_last_asian_calc_time < 60 && g_asian_high > 0) return;
+
    MqlDateTime dt;
-   TimeToStruct(TimeCurrent(), dt);
+   TimeToStruct(now, dt);
 
    if(dt.hour < 6)
    {
       datetime asian_start = today_date;
       MqlRates rates[];
       ArraySetAsSeries(rates, true);
-      int count = CopyRates(_Symbol, PERIOD_M5, asian_start, TimeCurrent(), rates);
+      int count = CopyRates(_Symbol, PERIOD_M5, asian_start, now, rates);
       if(count > 0)
       {
          double highest = -1e9;
@@ -381,6 +502,7 @@ void UpdateAsianRange()
          g_asian_low  = lowest;
       }
    }
+   g_last_asian_calc_time = now;
 }
 
 //+------------------------------------------------------------------+
@@ -446,15 +568,23 @@ double CalculateLotSizeWithDefendTheBag(double sl_points)
 }
 
 //+------------------------------------------------------------------+
-//| DETEKSI BERITA MERAH AS (HIGH-IMPACT NEWS GUARD)                 |
+//| DETEKSI BERITA MERAH AS (ZERO-BOTTLENECK CACHE 30 DETIK)         |
 //+------------------------------------------------------------------+
 bool IsHighImpactNewsTime()
 {
    if(!InpUseRedNewsGuard) return false;
 
+   datetime now = TimeCurrent();
+   // BOTTLENECK FIX: Cache hasil cek berita 30 detik
+   if(now - g_last_news_check_time < 30)
+   {
+      return g_cached_is_news_time;
+   }
+
+   bool news_active = false;
    MqlCalendarValue values[];
-   datetime from_time = TimeCurrent() - InpNewsBufferMin * 60;
-   datetime to_time   = TimeCurrent() + InpNewsBufferMin * 60;
+   datetime from_time = now - InpNewsBufferMin * 60;
+   datetime to_time   = now + InpNewsBufferMin * 60;
 
    int total_events = CalendarValueHistory(values, from_time, to_time, "US");
    if(total_events > 0)
@@ -464,18 +594,23 @@ bool IsHighImpactNewsTime()
          MqlCalendarEvent event;
          if(CalendarEventById(values[i].event_id, event))
          {
-            if(event.importance == CALENDAR_IMPORTANCE_HIGH) return true;
+            if(event.importance == CALENDAR_IMPORTANCE_HIGH) { news_active = true; break; }
          }
       }
    }
 
-   MqlDateTime dt;
-   TimeToStruct(TimeCurrent(), dt);
-   if(dt.hour == 12 && dt.min >= (30 - InpNewsBufferMin) && dt.min <= (30 + InpNewsBufferMin)) return true;
-   if(dt.hour == 14 && dt.min <= InpNewsBufferMin) return true;
-   if(dt.hour == 18 && dt.min <= InpNewsBufferMin) return true;
+   if(!news_active)
+   {
+      MqlDateTime dt;
+      TimeToStruct(now, dt);
+      if(dt.hour == 12 && dt.min >= (30 - InpNewsBufferMin) && dt.min <= (30 + InpNewsBufferMin)) news_active = true;
+      else if(dt.hour == 14 && dt.min <= InpNewsBufferMin) news_active = true;
+      else if(dt.hour == 18 && dt.min <= InpNewsBufferMin) news_active = true;
+   }
 
-   return false;
+   g_cached_is_news_time = news_active;
+   g_last_news_check_time = now;
+   return g_cached_is_news_time;
 }
 
 //+------------------------------------------------------------------+
@@ -541,9 +676,10 @@ void NotifyAITrade(string type, double price, double lot_used, double sl, double
    int embed_color = (type == "BUY") ? 0x2ECC71 : 0xE74C3C;
    string emoji = (type == "BUY") ? "🟢" : "🔴";
 
-   string fields = "{\"name\": \"🏷️ Tipe Order\", \"value\": \"" + emoji + " **" + type + " (Layer " + IntegerToString(current_layers) + "/" + IntegerToString(g_max_open_pos) + ")**\", \"inline\": true}," +
+   string fields = "{\"name\": \"🏷️ Account Tag\", \"value\": \"**`" + InpAccountTag + "`** (`#" + IntegerToString(g_account_login) + " • " + g_account_company + "`)\", \"inline\": false}," +
+                   "{\"name\": \"🏷️ Tipe Order\", \"value\": \"" + emoji + " **" + type + " (Layer " + IntegerToString(current_layers) + "/" + IntegerToString(g_max_open_pos) + ")**\", \"inline\": true}," +
                    "{\"name\": \"⚡ Pemicu Apex\", \"value\": \"`" + trigger_source + "`\", \"inline\": true}," +
-                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Apex Active)`\", \"inline\": true}," +
+                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Fleet Active)`\", \"inline\": true}," +
                    "{\"name\": \"📊 Simbol & Lot\", \"value\": \"`" + _Symbol + "` (**" + DoubleToString(lot_used, 2) + " Lot**)\", \"inline\": true}," +
                    "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(price, _Digits) + "` (Sniper Entry)\", \"inline\": true}," +
                    "{\"name\": \"🛡️ Dynamic SL\", \"value\": \"`" + DoubleToString(sl, _Digits) + "` (-" + IntegerToString(sl_pts / 10) + " Pips)\", \"inline\": true}," +
@@ -553,7 +689,7 @@ void NotifyAITrade(string type, double price, double lot_used, double sl, double
                    "{\"name\": \"🎫 Ticket ID\", \"value\": \"`#" + IntegerToString(ticket) + "`\", \"inline\": true}";
 
    SendDiscordEmbed("⚡ APEX QUANT FAST SNIPER (" + type + " - Layer " + IntegerToString(current_layers) + ")", 
-                    "Eksekusi Instan M1: Terkonfirmasi Setup Sniper Aktif + Dynamic ATR.", 
+                    "Eksekusi Instan M1 pada akun " + InpAccountTag + ": Terkonfirmasi Setup Sniper Aktif.", 
                     embed_color, 
                     fields, false);
 }
@@ -577,11 +713,12 @@ void NotifyCloseTrade(string type, double close_price, double profit, ulong deal
       if(InpUseLossCircuitBreaker && g_consecutive_losses >= 2)
       {
          g_cooldown_until = TimeCurrent() + 30 * 60;
-         string cooldown_fields = "{\"name\": \"⚠️ Status Rem Pengaman\", \"value\": \"`2x Loss Beruntun Terdeteksi`\", \"inline\": true}," +
+         string cooldown_fields = "{\"name\": \"🏷️ Account Tag\", \"value\": \"`" + InpAccountTag + "` (#" + IntegerToString(g_account_login) + ")\", \"inline\": true}," +
+                                  "{\"name\": \"⚠️ Rem Pengaman\", \"value\": \"`2x Loss Beruntun Terdeteksi`\", \"inline\": true}," +
                                   "{\"name\": \"⏳ Durasi Cooldown\", \"value\": \"`30 Menit (Hingga " + TimeToString(g_cooldown_until, TIME_MINUTES) + ")`\", \"inline\": true}," +
                                   "{\"name\": \"🏦 Saldo Diamankan\", \"value\": \"`$" + DoubleToString(m_account.Balance(), 2) + "`\", \"inline\": true}";
-         SendDiscordEmbed("🛡️ CONSECUTIVE LOSS CIRCUIT BREAKER AKTIF!", 
-                          "Bot otomatis istirahat 30 menit untuk mendinginkan akun dan menunggu pasar membentuk tren baru.", 
+         SendDiscordEmbed("🛡️ CONSECUTIVE LOSS CIRCUIT BREAKER AKTIF (" + InpAccountTag + ")!", 
+                          "Bot otomatis istirahat 30 menit untuk mendinginkan akun " + InpAccountTag + ".", 
                           0xE67E22, cooldown_fields, true);
       }
    }
@@ -595,10 +732,11 @@ void NotifyCloseTrade(string type, double close_price, double profit, ulong deal
    string pnl_sign = (profit >= 0) ? "+$" : "-$";
    double abs_profit = MathAbs(profit);
    double current_balance = m_account.Balance();
-   double daily_total_pl = GetDailyProfitLoss();
+   double daily_total_pl = GetDailyProfitLoss(true); // Force update cache saat ada deal closed
 
-   string fields = "{\"name\": \"📊 Hasil Transaksi\", \"value\": \"" + result_emoji + "\", \"inline\": true}," +
-                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Apex Active)`\", \"inline\": true}," +
+   string fields = "{\"name\": \"🏷️ Account Tag\", \"value\": \"**`" + InpAccountTag + "`** (`#" + IntegerToString(g_account_login) + " • " + g_account_company + "`)\", \"inline\": false}," +
+                   "{\"name\": \"📊 Hasil Transaksi\", \"value\": \"" + result_emoji + "\", \"inline\": true}," +
+                   "{\"name\": \"🧠 Versi Engine\", \"value\": \"`v" + g_current_version + " (Fleet Active)`\", \"inline\": true}," +
                    "{\"name\": \"💵 Realized PnL\", \"value\": \"**" + pnl_sign + DoubleToString(abs_profit, 2) + "**\", \"inline\": true}," +
                    "{\"name\": \"🏦 Saldo Akun Terkini\", \"value\": \"**`$" + DoubleToString(current_balance, 2) + "`**\", \"inline\": true}," +
                    "{\"name\": \"🏷️ Posisi Ditutup\", \"value\": \"`" + type + " " + _Symbol + " (" + DoubleToString(volume, 2) + " Lot)`\", \"inline\": true}," +
@@ -607,13 +745,13 @@ void NotifyCloseTrade(string type, double close_price, double profit, ulong deal
                    "{\"name\": \"🎫 Deal Ticket\", \"value\": \"`#" + IntegerToString(deal_ticket) + "`\", \"inline\": true}";
 
    SendDiscordEmbed("🏁 POSISI SCALPING SELESAI DITUTUP (" + ((profit >= 0) ? "PROFIT" : "LOSS") + ")", 
-                    "Posisi scalping telah resmi ditutup (Take Profit / Stop Loss / Trailing Stop) dan saldo akun berhasil diperbarui.", 
+                    "Posisi scalping akun " + InpAccountTag + " telah resmi ditutup dan saldo akun berhasil diperbarui.", 
                     embed_color, 
                     fields, (profit < -30.0));
 }
 
 //+------------------------------------------------------------------+
-//| EVENT ON TRADE TRANSACTION                                       |
+//| EVENT ON TRADE TRANSACTION (INSTANT EVENT HANDLER)                |
 //+------------------------------------------------------------------+
 void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest &request, const MqlTradeResult &result)
 {
@@ -643,7 +781,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
 }
 
 //+------------------------------------------------------------------+
-//| DOUBLE-CHECK POSITION CLOSE TRACKER                              |
+//| PERIODIC POSITION CLOSE FALLBACK TRACKER                         |
 //+------------------------------------------------------------------+
 void CheckPositionClosures()
 {
@@ -738,6 +876,8 @@ int OnInit()
    m_trade.SetTypeFillingBySymbol(_Symbol);
    m_trade.SetDeviationInPoints(30);
 
+   InitAccountMetadata();
+
    g_balance_step       = InpBalanceStep;
    g_lot_step           = InpFixedLot;
    g_sl_points          = InpBaseSLPoints;
@@ -755,6 +895,7 @@ int OnInit()
 
    FetchAndApplyCloudConfig(true);
    m_last_cloud_sync_time = TimeCurrent();
+   g_last_heartbeat_time  = TimeCurrent();
 
    handle_ema5_m1   = iMA(_Symbol, PERIOD_M1, 5, 0, MODE_EMA, PRICE_CLOSE);
    handle_ema13_m1  = iMA(_Symbol, PERIOD_M1, 13, 0, MODE_EMA, PRICE_CLOSE);
@@ -771,20 +912,24 @@ int OnInit()
       return INIT_FAILED;
    }
 
+   // Pasang timer 1 detik untuk tugas non-blocking (Cloud sync, Heartbeat, Fallback close check)
+   EventSetTimer(1);
+
    double current_bal = m_account.Balance();
    double target_usd = current_bal * (g_daily_target_pct / 100.0);
    double current_lot = CalculateLotSizeWithDefendTheBag(g_sl_points);
-   double current_daily_pnl = GetDailyProfitLoss();
+   double current_daily_pnl = GetDailyProfitLoss(true);
 
-   string startup_fields = "{\"name\": \"⚡ Apex Active Engine\", \"value\": \"`v" + g_current_version + " (Exact History Match)`\", \"inline\": true}," +
+   string startup_fields = "{\"name\": \"🏷️ Account Tag & Login\", \"value\": \"**`" + InpAccountTag + "`** (`#" + IntegerToString(g_account_login) + " - " + g_account_company + "`)\", \"inline\": false}," +
+                           "{\"name\": \"⚡ Apex Engine\", \"value\": \"`v" + g_current_version + " (Fleet Active)`\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target Cuan Harian\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (15% Wallet)`\", \"inline\": true}," +
                            "{\"name\": \"🏆 PnL Hari Ini (History)\", \"value\": \"`" + ((current_daily_pnl >= 0) ? "+$" : "-$") + DoubleToString(MathAbs(current_daily_pnl), 2) + "`\", \"inline\": true}," +
-                           "{\"name\": \"⚡ Eksekusi Responsif\", \"value\": \"`Micro-Pullback Dip + VWAP Bands`\", \"inline\": true}," +
+                           "{\"name\": \"⚡ Zero-Bottleneck\", \"value\": \"`Timer Asynchronous Engine`\", \"inline\": true}," +
                            "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Lot: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}," +
-                           "{\"name\": \"🛡️ Red News Shield\", \"value\": \"`Auto-Pause CPI/NFP/FOMC (15 Menit)`\", \"inline\": true}";
+                           "{\"name\": \"🛡️ Fleet Protection\", \"value\": \"`News + Rollover + Loss Circuit`\", \"inline\": true}";
 
-   SendDiscordEmbed("⚡ XAUUSD Apex Scalper Aktif (v5.20 - Exact History Sync)! 🚀", 
-                    "Kalkulasi PnL harian sekarang 100% sama persis dengan angka tab History MT5!", 
+   SendDiscordEmbed("⚡ XAUUSD Apex Scalper Aktif (v5.30 Fleet Edition)! 🚀", 
+                    "Sistem identifikasi ID Akun [" + InpAccountTag + "] & arsitektur Zero-Bottleneck siap beroperasi!", 
                     0x3498DB, startup_fields, false);
 
    return INIT_SUCCEEDED;
@@ -795,6 +940,7 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
+   EventKillTimer();
    IndicatorRelease(handle_ema5_m1);
    IndicatorRelease(handle_ema13_m1);
    IndicatorRelease(handle_stoch_m1);
@@ -805,9 +951,39 @@ void OnDeinit(const int reason)
 }
 
 //+------------------------------------------------------------------+
+//| EVENT ON TIMER (ZERO-BOTTLENECK NON-BLOCKING BACKGROUND TASKS)   |
+//+------------------------------------------------------------------+
+void OnTimer()
+{
+   datetime now = TimeCurrent();
+
+   // 1. Cloud OTA Sync setiap interval menit
+   if(now - m_last_cloud_sync_time >= InpSyncIntervalMin * 60)
+   {
+      FetchAndApplyCloudConfig(false);
+      m_last_cloud_sync_time = now;
+   }
+
+   // 2. Heartbeat Pulse setiap interval jam
+   if(InpEnableHeartbeat && (now - g_last_heartbeat_time >= InpHeartbeatIntervalHours * 3600))
+   {
+      SendFleetHeartbeatPulse();
+      g_last_heartbeat_time = now;
+   }
+
+   // 3. Fallback check posisi tertutup setiap 5 detik
+   static datetime last_fallback_close = 0;
+   if(now - last_fallback_close >= 5)
+   {
+      CheckPositionClosures();
+      last_fallback_close = now;
+   }
+}
+
+//+------------------------------------------------------------------+
 //| ON-CHART DASHBOARD APEX SCALPER                                  |
 //+------------------------------------------------------------------+
-void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_d, double vwap, double vwap_up, double vwap_low, string regime_label, string signal_status, int dyn_sl, int dyn_tp)
+void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_d, double vwap, double vwap_up, double vwap_low, string regime_label, string signal_status, int dyn_sl, int dyn_tp, int active_orders, int buy_orders, int sell_orders)
 {
    long current_spread = m_symbol.Spread();
    string spread_status = (current_spread <= g_max_spread) ? "[AMAN ✅]" : "[TERLALU TINGGI 🚫]";
@@ -824,22 +1000,6 @@ void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_
    double daily_pl = GetDailyProfitLoss();
    double lot = CalculateLotSizeWithDefendTheBag(dyn_sl);
 
-   int active_orders = 0;
-   int buy_orders = 0;
-   int sell_orders = 0;
-   for(int i = PositionsTotal() - 1; i >= 0; i--)
-   {
-      if(m_position.SelectByIndex(i))
-      {
-         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
-         {
-            active_orders++;
-            if(m_position.PositionType() == POSITION_TYPE_BUY) buy_orders++;
-            else if(m_position.PositionType() == POSITION_TYPE_SELL) sell_orders++;
-         }
-      }
-   }
-
    string dir_status = "NETRAL (Siap BUY / SELL)";
    if(buy_orders > 0) dir_status = StringFormat("BUY ONLY LOCKED 🟢 (%d/3 Layer)", buy_orders);
    else if(sell_orders > 0) dir_status = StringFormat("SELL ONLY LOCKED 🔴 (%d/3 Layer)", sell_orders);
@@ -847,15 +1007,16 @@ void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_
    string defend_status = (daily_pl >= cur_bal * (InpDefendBagProfitPct / 100.0)) ? "AKTIF 🔥 (Lot Dipangkas 50%)" : "STANDBY ⚪";
 
    string info = "=========================================================\n";
-   info += "       ⚡ XAUUSD APEX ACTIVE SCALPER v" + g_current_version + "    \n";
+   info += "       ⚡ XAUUSD APEX FLEET SCALPER v" + g_current_version + "    \n";
    info += "=========================================================\n";
+   info += StringFormat(" 🏷️ Account ID       : %s\n", g_account_display_id);
    info += StringFormat(" 💰 Balance / Equity : $%.2f / $%.2f\n", m_account.Balance(), m_account.Equity());
    info += StringFormat(" 📈 Auto-Lot Mode    : %.2f Lot ($%.0f = %.2f Lot)\n", lot, g_balance_step, g_lot_step);
    info += StringFormat(" ⚡ Posisi Aktif     : %d / %d Posisi (Tri-Layer Grid)\n", active_orders, g_max_open_pos);
    info += StringFormat(" 🔒 Direction Lock   : %s\n", dir_status);
    info += StringFormat(" 💼 Defend-The-Bag   : %s\n", defend_status);
    info += "---------------------------------------------------------\n";
-   info += " [RADAR HUNTING M1 REAL-TIME]\n";
+   info += " [RADAR HUNTING M1 REAL-TIME (ZERO-BOTTLENECK)]\n";
    info += StringFormat("  🏛️ Rezim Pasar     : %s\n", regime_label);
    info += StringFormat("  📈 M1 Momentum     : EMA5 (%.2f) vs EMA13 (%.2f) -> %s\n", ema5, ema13, (ema5 > ema13) ? "BULLISH 🟢" : "BEARISH 🔴");
    info += StringFormat("  ⚡ Fast Stoch (5,3): K=%.1f | D=%.1f (%s)\n", stoch_k, stoch_d, (stoch_k < 35) ? "OVERSOLD 🟢" : (stoch_k > 65) ? "OVERBOUGHT 🔴" : "NEUTRAL ⚪");
@@ -866,7 +1027,7 @@ void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_
    info += StringFormat(" 🛡️ Spread Gold      : %d pts (Max: %d pts) %s\n", current_spread, g_max_spread, spread_status);
    info += StringFormat(" 🏆 Profit Hari Ini  : %s$%.2f (Tab History MT5)\n", (daily_pl >= 0) ? "+" : "-", MathAbs(daily_pl));
    info += StringFormat(" 🎯 Target 15%% Cuan  : +$%.2f (Kunci Profit)\n", dynamic_target_usd);
-   info += " 📡 Discord Webhook  : TERHUBUNG (Apex Active Alerts) ✅\n";
+   info += " 📡 Discord Webhook  : TERHUBUNG (Fleet Multi-Account) ✅\n";
    info += "=========================================================\n";
 
    Comment(info);
@@ -875,23 +1036,9 @@ void DisplayAIDashboard(double ema5, double ema13, double stoch_k, double stoch_
 //+------------------------------------------------------------------+
 //| MANAJEMEN POSISI: MULTI-STAGE TP, FAST BE & TRAILING             |
 //+------------------------------------------------------------------+
-void ManageOpenPositions()
+void ManageOpenPositions(int active_buy_count, int active_sell_count)
 {
    double point = m_symbol.Point();
-
-   int active_buy_count = 0;
-   int active_sell_count = 0;
-   for(int p = PositionsTotal() - 1; p >= 0; p--)
-   {
-      if(m_position.SelectByIndex(p))
-      {
-         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
-         {
-            if(m_position.PositionType() == POSITION_TYPE_BUY) active_buy_count++;
-            else if(m_position.PositionType() == POSITION_TYPE_SELL) active_sell_count++;
-         }
-      }
-   }
 
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
@@ -978,7 +1125,7 @@ void ManageOpenPositions()
 }
 
 //+------------------------------------------------------------------+
-//| VALIDASI JARAK MINIMAL ANTAR LAYER                               |
+//| VALIDASI JARAK MINIMAL ANTAR LAYER (OPTIMIZED SINGLE SCAN)       |
 //+------------------------------------------------------------------+
 bool IsLayerDistanceValid(ENUM_ORDER_TYPE order_type, double entry_price)
 {
@@ -1024,7 +1171,7 @@ void ExecuteApexScalp(ENUM_ORDER_TYPE order_type, string trigger_source, int cur
 
       if(m_trade.Buy(lot, _Symbol, ask, sl, tp, comment_label))
       {
-         Print("🚀 [APEX BUY EXECUTED - Layer ", current_active_count + 1, "/3] Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", ask);
+         Print("🚀 [APEX BUY EXECUTED - Layer ", current_active_count + 1, "/3] Akun: ", InpAccountTag, " | Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", ask);
          NotifyAITrade("BUY", ask, lot, sl, tp, m_trade.ResultOrder(), trigger_source, current_spread, current_active_count + 1, dyn_sl_pts, dyn_tp_pts);
          last_trade_time = TimeCurrent();
       }
@@ -1041,7 +1188,7 @@ void ExecuteApexScalp(ENUM_ORDER_TYPE order_type, string trigger_source, int cur
 
       if(m_trade.Sell(lot, _Symbol, bid, sl, tp, comment_label))
       {
-         Print("🚀 [APEX SELL EXECUTED - Layer ", current_active_count + 1, "/3] Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", bid);
+         Print("🚀 [APEX SELL EXECUTED - Layer ", current_active_count + 1, "/3] Akun: ", InpAccountTag, " | Trigger: ", trigger_source, " | Lot: ", lot, " | Price: ", bid);
          NotifyAITrade("SELL", bid, lot, sl, tp, m_trade.ResultOrder(), trigger_source, current_spread, current_active_count + 1, dyn_sl_pts, dyn_tp_pts);
          last_trade_time = TimeCurrent();
       }
@@ -1049,47 +1196,57 @@ void ExecuteApexScalp(ENUM_ORDER_TYPE order_type, string trigger_source, int cur
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (RESPONSIVE APEX QUANT ENGINE)                 |
+//| ON TICK EXECUTION (ULTRA-LEAN ZERO-BOTTLENECK ENGINE)            |
 //+------------------------------------------------------------------+
 void OnTick()
 {
    if(!m_symbol.RefreshRates()) return;
 
-   // 1. Sinkronisasi berkala dari Cloud GitHub setiap 5 menit
-   if(TimeCurrent() - m_last_cloud_sync_time >= InpSyncIntervalMin * 60)
-   {
-      FetchAndApplyCloudConfig(false);
-      m_last_cloud_sync_time = TimeCurrent();
-   }
-
-   // 2. Perisai Jumat Malam
+   // 1. Perisai Jumat Malam
    if(IsFridayWeekendCleanTime())
    {
       CloseAllPositionsForWeekend();
    }
 
-   // 3. Eksekusi Proteksi Posisi
-   ManageOpenPositions();
+   // 2. SCAN TUNGGAL POSISI AKTIF (Zero-Bottleneck: 1 Loop untuk Semua Fitur)
+   int active_orders = 0;
+   int active_buy_count = 0;
+   int active_sell_count = 0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      if(m_position.SelectByIndex(i))
+      {
+         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
+         {
+            active_orders++;
+            if(m_position.PositionType() == POSITION_TYPE_BUY) active_buy_count++;
+            else if(m_position.PositionType() == POSITION_TYPE_SELL) active_sell_count++;
+         }
+      }
+   }
 
-   // 4. Double-Check Deteksi Posisi Tertutup
-   CheckPositionClosures();
+   // 3. Eksekusi Proteksi Posisi (Multi-Stage TP, BE, Trailing)
+   if(active_orders > 0)
+   {
+      ManageOpenPositions(active_buy_count, active_sell_count);
+   }
 
-   // 5. Update Asian Range & Hitung Session VWAP Bands
+   // 4. Update Asian Range & Hitung Session VWAP Bands (Cached)
    UpdateAsianRange();
    double vwap = 0.0, vwap_up = 0.0, vwap_low = 0.0;
    CalculateSessionVWAP(vwap, vwap_up, vwap_low);
 
-   // 6. Hitung Dynamic ATR SL & TP
+   // 5. Hitung Dynamic ATR SL & TP
    int dyn_sl_pts = g_sl_points;
    int dyn_tp_pts = g_tp_points;
    CalculateDynamicSLTP(dyn_sl_pts, dyn_tp_pts);
 
-   // 7. Ambil Data Candlestick M1 Terkini
+   // 6. Ambil Data Candlestick M1 Terkini
    MqlRates rates_m1[];
    ArraySetAsSeries(rates_m1, true);
    if(CopyRates(_Symbol, PERIOD_M1, 0, 5, rates_m1) < 5) return;
 
-   // 8. Ambil Buffer Indikator M1 Fast & M15 Macro
+   // 7. Ambil Buffer Indikator M1 Fast & M15 Macro
    double ema5_buf[], ema13_buf[], stoch_k_buf[], stoch_d_buf[], bb_up_buf[], bb_low_buf[], ema50_m15_buf[];
    ArraySetAsSeries(ema5_buf, true);
    ArraySetAsSeries(ema13_buf, true);
@@ -1116,7 +1273,7 @@ void OnTick()
    double bb_low       = bb_low_buf[0];
    double macro_ema50  = ema50_m15_buf[0];
 
-   // 9. Analisis Anatomi Bar 1 yang Resmi Tertutup (Wick Rejection >= 35%)
+   // 8. Analisis Anatomi Bar 1 yang Resmi Tertutup (Wick Rejection >= 35%)
    double bar1_open  = rates_m1[1].open;
    double bar1_high  = rates_m1[1].high;
    double bar1_low   = rates_m1[1].low;
@@ -1131,28 +1288,11 @@ void OnTick()
    bool is_bullish_engulf = (bar1_close > rates_m1[2].high) && (bar1_close > bar1_open);
    bool is_bearish_engulf = (bar1_close < rates_m1[2].low) && (bar1_close < bar1_open);
 
-   // 10. Deteksi Rezim Pasar
+   // 9. Deteksi Rezim Pasar
    ENUM_MARKET_REGIME regime = DetectMarketRegime(bb_up, bb_low, ema5_curr, ema13_curr);
    string regime_str = (regime == REGIME_STRONG_TREND) ? "TRENDING MOMENTUM 🚀" : "RANGING / SIDEWAYS ⚖️";
 
-   // 11. Cek Posisi Aktif & Directional Lock
-   int active_orders = 0;
-   int active_buy_count = 0;
-   int active_sell_count = 0;
-   for(int i = PositionsTotal() - 1; i >= 0; i--)
-   {
-      if(m_position.SelectByIndex(i))
-      {
-         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicNumber)
-         {
-            active_orders++;
-            if(m_position.PositionType() == POSITION_TYPE_BUY) active_buy_count++;
-            else if(m_position.PositionType() == POSITION_TYPE_SELL) active_sell_count++;
-         }
-      }
-   }
-
-   // 12. PEMBANGKIT SINYAL APEX QUANT AKTIF (MULTI-TRIGGER CONFLUENCE)
+   // 10. PEMBANGKIT SINYAL APEX QUANT AKTIF (MULTI-TRIGGER CONFLUENCE)
    bool buy_signal = false;
    bool sell_signal = false;
    string trigger_reason = "";
@@ -1231,7 +1371,7 @@ void OnTick()
       }
    }
 
-   // 13. Update Dashboard On-Chart
+   // 11. Update Dashboard On-Chart
    string dashboard_status = "STANDBY HUNTING M1...";
    if(IsHighImpactNewsTime()) dashboard_status = "🚨 RED NEWS PAUSE (CPI/NFP/FOMC)";
    else if(IsFridayWeekendCleanTime()) dashboard_status = "📅 FRIDAY WEEKEND PAUSE (21:00+)";
@@ -1239,9 +1379,9 @@ void OnTick()
    else if(TimeCurrent() < g_cooldown_until) dashboard_status = "⏳ LOSS COOLDOWN (30 Mnt Pause)";
    else if(buy_signal) dashboard_status = "🟢 APEX BUY DETECTED! (" + trigger_reason + ")";
    else if(sell_signal) dashboard_status = "🔴 APEX SELL DETECTED! (" + trigger_reason + ")";
-   DisplayAIDashboard(ema5_curr, ema13_curr, stoch_k, stoch_d, vwap, vwap_up, vwap_low, regime_str, dashboard_status, dyn_sl_pts, dyn_tp_pts);
+   DisplayAIDashboard(ema5_curr, ema13_curr, stoch_k, stoch_d, vwap, vwap_up, vwap_low, regime_str, dashboard_status, dyn_sl_pts, dyn_tp_pts, active_orders, active_buy_count, active_sell_count);
 
-   // 14. Cek Proteksi Daily Target (15%) & Max Loss
+   // 12. Cek Proteksi Daily Target (15%) & Max Loss
    if(g_use_daily_guard)
    {
       double cur_bal = m_account.Balance();
@@ -1254,7 +1394,7 @@ void OnTick()
       if(daily_pl >= dynamic_target_usd || daily_pl <= -dynamic_max_loss_usd) return;
    }
 
-   // 15. Perisai Pelindung: Red News, Friday Weekend, Rollover, Loss Cooldown & Spread Guard
+   // 13. Perisai Pelindung: Red News, Friday Weekend, Rollover, Loss Cooldown & Spread Guard
    if(IsHighImpactNewsTime()) return;
    if(IsFridayWeekendCleanTime()) return;
    if(IsRolloverTime()) return;
@@ -1262,17 +1402,17 @@ void OnTick()
    if(m_symbol.Spread() > g_max_spread) return;
    if(active_orders >= g_max_open_pos) return;
 
-   // 16. Directional Hegemony Guard (Haram Hedging saat Layer Berjalan)
+   // 14. Directional Hegemony Guard (Haram Hedging saat Layer Berjalan)
    if(InpUseDirectionalLock)
    {
       if(active_buy_count > 0 && sell_signal) return;
       if(active_sell_count > 0 && buy_signal) return;
    }
 
-   // 17. Cooldown Minimal 5 Detik Antar Order
+   // 15. Cooldown Minimal 5 Detik Antar Order
    if(TimeCurrent() - last_trade_time < 5) return;
 
-   // 18. EKSEKUSI APEX QUANT SNIPER ORDER (Maksimal 3 Layer)
+   // 16. EKSEKUSI APEX QUANT SNIPER ORDER (Maksimal 3 Layer)
    if(buy_signal)
    {
       ExecuteApexScalp(ORDER_TYPE_BUY, trigger_reason, active_orders, dyn_sl_pts, dyn_tp_pts);
