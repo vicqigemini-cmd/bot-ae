@@ -196,9 +196,8 @@ void InitAccountMetadata()
    g_account_login      = AccountInfoInteger(ACCOUNT_LOGIN);
    g_account_company    = AccountInfoString(ACCOUNT_COMPANY);
    g_account_server     = AccountInfoString(ACCOUNT_SERVER);
-   g_account_trade_mode = (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_REAL) ? "REAL" : "DEMO";
 
-   g_account_display_id = StringFormat("%s [#%d • %s (%s)]", InpAccountTag, g_account_login, g_account_company, g_account_trade_mode);
+   g_account_display_id = StringFormat("%s • %s", InpAccountTag, g_account_company);
 }
 
 //+------------------------------------------------------------------+
@@ -267,7 +266,7 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
                     "\"description\": \"" + description + "\"," +
                     "\"color\": " + IntegerToString(color_hex) + "," +
                     "\"fields\": [" + fields_json + "]," +
-                    "\"footer\": {\"text\": \"Akun: " + InpAccountTag + " (#" + IntegerToString(g_account_login) + ") • v" + g_current_version + " • " + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
+                    "\"footer\": {\"text\": \"Akun: " + InpAccountTag + " • " + g_account_company + " • v" + g_current_version + " • " + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
                     "}]}";
 
    char post_data[];
@@ -361,7 +360,7 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
             double cur_bal = m_account.Balance();
             double target_usd = cur_bal * (g_daily_target_pct / 100.0);
 
-            string update_fields = "{\"name\": \"🏷️ Account Tag\", \"value\": \"`" + InpAccountTag + "` (#" + IntegerToString(g_account_login) + ")\", \"inline\": true}," +
+            string update_fields = "{\"name\": \"🏷️ Account ID\", \"value\": \"`" + InpAccountTag + " • " + g_account_company + "`\", \"inline\": true}," +
                                    "{\"name\": \"🧠 Brain Engine\", \"value\": \"`v" + g_current_version + " (Hybrid Scalp + Swing)`\", \"inline\": true}," +
                                    "{\"name\": \"🎯 Target Harian\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (" + DoubleToString(g_daily_target_pct, 0) + "% Wallet)`\", \"inline\": true}," +
                                    "{\"name\": \"⚡ Mesin 1 (Scalp M1)\", \"value\": \"`Tri-Layer Grid + Session VWAP`\", \"inline\": true}," +
@@ -410,13 +409,13 @@ void SendFleetHeartbeatPulse()
    if(TimeCurrent() < g_cooldown_until) ea_state = "⏳ COOLDOWN PAUSE (30 Mnt)";
    else if(g_cached_is_news_time) ea_state = "🚨 RED NEWS PAUSE";
 
-   string heartbeat_fields = "{\"name\": \"🏷️ Account Tag & ID\", \"value\": \"**`" + InpAccountTag + "`** (`#" + IntegerToString(g_account_login) + " - " + g_account_company + "`)\", \"inline\": false}," +
+   string heartbeat_fields = "{\"name\": \"🏷️ Account ID\", \"value\": \"**`" + InpAccountTag + "`** (`" + g_account_company + "`)\", \"inline\": false}," +
                              "{\"name\": \"🏦 Saldo / Equity\", \"value\": \"`$" + DoubleToString(balance, 2) + " / $" + DoubleToString(equity, 2) + "`\", \"inline\": true}," +
                              "{\"name\": \"🏆 PnL Hari Ini (History)\", \"value\": \"`" + ((daily_pnl >= 0) ? "+$" : "-$") + DoubleToString(MathAbs(daily_pnl), 2) + "`\", \"inline\": true}," +
                              "{\"name\": \"🛡️ Margin Level\", \"value\": \"`" + DoubleToString(margin_level, 1) + "%` (Free: $" + DoubleToString(free_margin, 2) + ")\", \"inline\": true}," +
                              "{\"name\": \"⚡ Posisi Berjalan\", \"value\": \"" + position_status + "\", \"inline\": true}," +
                              "{\"name\": \"🧠 Status Engine\", \"value\": \"`" + ea_state + "`\", \"inline\": true}," +
-                             "{\"name\": \"📶 Versi & Mode\", \"value\": \"`v" + g_current_version + " • " + g_account_trade_mode + "`\", \"inline\": true}";
+                             "{\"name\": \"📶 Versi Engine\", \"value\": \"`v" + g_current_version + "`\", \"inline\": true}";
 
    SendDiscordEmbed("💓 FLEET HEARTBEAT MONITOR PULSE (" + InpAccountTag + ")", 
                     "Laporan status kesehatan dual-engine & performa akun real-time berjalan normal 100%.", 
@@ -694,7 +693,7 @@ void NotifyAITrade(string engine, string type, double price, double lot_used, do
 
    if(engine == "SWING") embed_color = (type == "BUY") ? 0x9B59B6 : 0xE67E22;
 
-   string fields = "{\"name\": \"🏷️ Account Tag\", \"value\": \"**`" + InpAccountTag + "`** (`#" + IntegerToString(g_account_login) + " • " + g_account_company + "`)\", \"inline\": false}," +
+   string fields = "{\"name\": \"🏷️ Account ID\", \"value\": \"**`" + InpAccountTag + "`** (`" + g_account_company + "`)\", \"inline\": false}," +
                    "{\"name\": \"🏛️ Mesin Eksekusi\", \"value\": \"" + engine_badge + "\", \"inline\": true}," +
                    "{\"name\": \"🏷️ Tipe Order\", \"value\": \"" + emoji + " **" + type + " (Layer " + IntegerToString(current_layers) + ")**\", \"inline\": true}," +
                    "{\"name\": \"⚡ Pemicu Sinyal\", \"value\": \"`" + trigger_source + "`\", \"inline\": true}," +
@@ -731,7 +730,7 @@ void NotifyCloseTrade(string engine, string type, double close_price, double pro
       if(InpUseLossCircuitBreaker && g_consecutive_losses >= 2)
       {
          g_cooldown_until = TimeCurrent() + 30 * 60;
-         string cooldown_fields = "{\"name\": \"🏷️ Account Tag\", \"value\": \"`" + InpAccountTag + "` (#" + IntegerToString(g_account_login) + ")\", \"inline\": true}," +
+         string cooldown_fields = "{\"name\": \"🏷️ Account ID\", \"value\": \"`" + InpAccountTag + " • " + g_account_company + "`\", \"inline\": true}," +
                                   "{\"name\": \"⚠️ Rem Pengaman\", \"value\": \"`2x Loss Beruntun Terdeteksi`\", \"inline\": true}," +
                                   "{\"name\": \"⏳ Durasi Cooldown\", \"value\": \"`30 Menit (Hingga " + TimeToString(g_cooldown_until, TIME_MINUTES) + ")`\", \"inline\": true}," +
                                   "{\"name\": \"🏦 Saldo Diamankan\", \"value\": \"`$" + DoubleToString(m_account.Balance(), 2) + "`\", \"inline\": true}";
@@ -753,7 +752,7 @@ void NotifyCloseTrade(string engine, string type, double close_price, double pro
    double daily_total_pl = GetDailyProfitLoss(true);
    string engine_label = (engine == "SWING") ? "🌊 SWING RUNNER H4" : "⚡ SCALP M1";
 
-   string fields = "{\"name\": \"🏷️ Account Tag\", \"value\": \"**`" + InpAccountTag + "`** (`#" + IntegerToString(g_account_login) + " • " + g_account_company + "`)\", \"inline\": false}," +
+   string fields = "{\"name\": \"🏷️ Account ID\", \"value\": \"**`" + InpAccountTag + "`** (`" + g_account_company + "`)\", \"inline\": false}," +
                    "{\"name\": \"🏛️ Mesin Eksekusi\", \"value\": \"`" + engine_label + "`\", \"inline\": true}," +
                    "{\"name\": \"📊 Hasil Transaksi\", \"value\": \"" + result_emoji + "\", \"inline\": true}," +
                    "{\"name\": \"💵 Realized PnL\", \"value\": \"**" + pnl_sign + DoubleToString(abs_profit, 2) + "**\", \"inline\": true}," +
@@ -951,7 +950,7 @@ int OnInit()
    double current_lot = CalculateScalpLotSize(g_sl_points);
    double current_daily_pnl = GetDailyProfitLoss(true);
 
-   string startup_fields = "{\"name\": \"🏷️ Account Tag & Login\", \"value\": \"**`" + InpAccountTag + "`** (`#" + IntegerToString(g_account_login) + " - " + g_account_company + "`)\", \"inline\": false}," +
+   string startup_fields = "{\"name\": \"🏷️ Account ID\", \"value\": \"**`" + InpAccountTag + "`** (`" + g_account_company + "`)\", \"inline\": false}," +
                            "{\"name\": \"🧠 Unified Brain Engine\", \"value\": \"`v" + g_current_version + " (Dual-Engine Hybrid)`\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target Cuan Harian\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (15% Wallet)`\", \"inline\": true}," +
                            "{\"name\": \"🏆 PnL Hari Ini (History)\", \"value\": \"`" + ((current_daily_pnl >= 0) ? "+$" : "-$") + DoubleToString(MathAbs(current_daily_pnl), 2) + "`\", \"inline\": true}," +
