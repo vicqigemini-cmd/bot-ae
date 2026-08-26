@@ -1,10 +1,10 @@
 {
-  "version": "3.00",
+  "version": "3.05",
   "sync_interval_min": 5,
   "engine_name": "XAUUSD AI-Brain Neural Scalper",
   "ai_confidence_threshold": 0.60,
   "auto_lot": true,
-  "balance_per_step": 100.0,
+  "balance_per_step": 500.0,
   "lot_per_step": 0.01,
   "stop_loss_points": 150,
   "take_profit_points": 300,
@@ -16,5 +16,5 @@
   "use_daily_guard": true,
   "daily_target_profit_usd": 100.0,
   "daily_max_loss_usd": 50.0,
-  "status_message": "OTA v3.00 Aktif - Arsitektur Dasar Resmi Berbasis XAUUSD AI-Brain Deep Neural Network."
+  "status_message": "OTA v3.05 Aktif - Auto-Lot Konservatif: $500 Saldo = 0.01 Lot dan kelipatannya ($1000 = 0.02 Lot)."
 }
