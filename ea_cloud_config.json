@@ -1,5 +1,5 @@
 {
-  "version": "2.25",
+  "version": "2.30",
   "sync_interval_min": 5,
   "auto_lot": true,
   "balance_per_step": 100.0,
@@ -16,5 +16,12 @@
   "rsi_period": 14,
   "rsi_overbought": 75.0,
   "rsi_oversold": 25.0,
-  "status_message": "OTA Cloud Engine Aktif - Sinkronisasi Cepat Setiap 5 Menit."
+  "max_spread_points": 35,
+  "use_time_filter": true,
+  "start_hour_server": 8,
+  "end_hour_server": 22,
+  "use_daily_guard": true,
+  "daily_target_profit_usd": 50.0,
+  "daily_max_loss_usd": 25.0,
+  "status_message": "OTA Cloud Engine v2.30 - Dilengkapi Max Spread Guard, Filter Sesi Trading, & Daily Target/Max Loss Protection."
 }
