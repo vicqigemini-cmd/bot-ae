@@ -1,7 +1,7 @@
 {
-  "version": "5.00",
+  "version": "5.10",
   "sync_interval_min": 5,
-  "engine_name": "XAUUSD Apex Quantitative Scalper Engine (Tier-1 Quants)",
+  "engine_name": "XAUUSD Apex Active Scalper Engine (Micro-Pullback Sniper)",
   "auto_lot": true,
   "balance_per_step": 500.0,
   "lot_per_step": 0.01,
@@ -30,5 +30,5 @@
   "use_daily_guard": true,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 7.0,
-  "status_message": "OTA v5.00 Aktif - Apex Quant: 5 Pilar Institusional (Regime Switch + Session VWAP + Asian Sweep Trap + Triple Screen + Defend-The-Bag)."
+  "status_message": "OTA v5.10 Aktif - Apex Active: Micro-Pullback Sniper (Dip to EMA13) + Fast Stoch Hook + Session VWAP Reversal."
 }
