@@ -1,7 +1,7 @@
 {
-  "version": "15.00",
+  "version": "16.00",
   "sync_interval_min": 5,
-  "engine_name": "Apex Sovereign Multi-Pair Portfolio Matrix & Shared Risk Engine (v15.00)",
+  "engine_name": "Apex Universal Multi-Asset Sovereign Citadel (v16.00 Forex & Commodities Swing Playbook Edition)",
   "emergency_close_all": false,
   "enable_auto_self_update": true,
   "enable_multi_pair_mode": true,
@@ -56,5 +56,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v15.00 Universal Multi-Pair Portfolio Matrix & Shared Risk Engine: Universal Asset Support (XAUUSD, Forex EUR/GBP, US30/NAS100 Index), Shared Portfolio Risk Cap (Max 2.0% Total Open Risk), Asset-Adaptive Structural SL/TP (1:2.5 RR), Institutional Kill-Zones Time Engine (London & NY), True-BE Anti-Minus, Prop Firm 4% Drawdown Defense, In-EA Autonomous Self-Updater."
+  "status_message": "OTA v16.00 Forex & Commodities Swing Playbook Edition: Asset-Adaptive Swing SL/TP (GBPJPY 80/250p, EURUSD 40/150p, GBPUSD 60/200p, Gold 80/240p, US30 100/350p), Wednesday Triple-Swap Protector, Weekend Holding Guard for BE-Locked Trades, Shared Global Portfolio Risk Cap (Max 2.0%), Institutional Kill-Zones Time Engine, Prop Firm 4% Drawdown Defense, In-EA Autonomous Self-Updater."
 }
