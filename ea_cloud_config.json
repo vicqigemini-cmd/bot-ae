@@ -1,7 +1,7 @@
 {
-  "version": "18.00",
+  "version": "19.00",
   "sync_interval_min": 5,
-  "engine_name": "Apex Universal Multi-Asset Sovereign Citadel (v18.00 Sovereign Ironclad Shield Edition)",
+  "engine_name": "Apex Sovereign Ultimate Citadel (v19.00 Flawless Execution Edition)",
   "emergency_close_all": false,
   "enable_auto_self_update": true,
   "enable_multi_pair_mode": true,
@@ -56,5 +56,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v18.00 Sovereign Ironclad Shield Edition: UTC Global Auto-Synchronized Kill-Zones (TimeGMT), Minimum Fibonacci Range Anti-Chop Filter, Directional Concurrency Dual-Engine Risk Lock, Rollover & Spread Freeze Shield, Symbol-Isolated Deal History & Circuit Breaker Tracking, Asset-Adaptive Lot Sizing, Prop Firm 4% Drawdown Defense, In-EA Autonomous Self-Updater."
+  "status_message": "OTA v19.00 Flawless Execution Edition: Immutable Initial Risk Positive Trailing Engine (Fix Error 10016), Persistent 90-Second Bar-Opening Scan Window (Anti-Spread Spike Miss), 8-Bar Multi-Imbalance FVG Scanner, Instant State Recovery OnInit, Universal Asset-Adaptive Lot Engine, UTC Global Auto-Synchronized Kill-Zones (TimeGMT), Prop Firm 4% Drawdown Defense, In-EA Autonomous Self-Updater."
 }
