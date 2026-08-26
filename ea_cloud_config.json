@@ -1,7 +1,7 @@
 {
-  "version": "22.00",
+  "version": "23.00",
   "sync_interval_min": 5,
-  "engine_name": "Apex Sovereign Invictus Citadel (v22.00 Weekend Gap Armor & Fixed Fib Edition)",
+  "engine_name": "Apex Sovereign Transcendence (v23.00 Flawless Zero-Bottleneck Edition)",
   "emergency_close_all": false,
   "enable_auto_self_update": true,
   "enable_multi_pair_mode": true,
@@ -56,5 +56,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v22.00 Apex Sovereign Invictus Citadel Edition: Weekend Swing Gap Protection (Mandatory Friday 21:00 cutoff for risky trades), Non-Flickering Fixed Bar 1-24 Fibonacci Sweep, Asset-Adaptive Slippage Deviation (Gold 50p, FX 30p, US30 100p), MTF History Pre-Warmer OnInit, Official FTMO Day-Start Standard, In-EA Autonomous Self-Updater."
+  "status_message": "OTA v23.00 Apex Sovereign Transcendence Edition: Risk-Free Portfolio Compounding (True-BE positions count as $0.00 risk, immediately freeing 2% cap for new setups), Event-Driven Zero-Lag PnL & Closed-Bar Caching, Broker Retcode Diagnostics, Weekend Swing Gap Armor, In-EA Autonomous Self-Updater."
 }
