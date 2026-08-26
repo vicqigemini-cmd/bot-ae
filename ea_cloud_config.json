@@ -1,9 +1,17 @@
 {
-  "version": "13.00",
+  "version": "14.00",
   "sync_interval_min": 5,
-  "engine_name": "XAUUSD Institutional M15 Single-Entry Sniper Model (Anti-Rungkad Backtest Edition)",
+  "engine_name": "XAUUSD Institutional Kill-Zones & M15 Sniper Model (London & NY Edition)",
   "emergency_close_all": false,
   "enable_auto_self_update": true,
+  "use_kill_zones_only": true,
+  "trade_london_kz": true,
+  "london_kz_start_hour": 7,
+  "london_kz_end_hour": 11,
+  "trade_ny_kz": true,
+  "ny_kz_start_hour": 13,
+  "ny_kz_end_hour": 17,
+  "trade_asian_session": false,
   "enable_m15_sniper": true,
   "enable_swing_engine": true,
   "risk_percent": 1.0,
@@ -45,5 +53,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v13.00 Institutional M15 Single-Entry Sniper Model Aktif: Hapus Grid Rapat & Overtrading M1, Single Position Sniper M15 (Confirmed Candle Close), Structural SL (300-600 pts) & 1:2.5 RR TP, True Zero-Loss Commission-Aware BE, Golden Pocket 50-61.8% Fib, SMC FVG Retest, Prop Firm 4% Drawdown Defense, In-EA Autonomous Self-Updater."
+  "status_message": "OTA v14.00 Institutional Kill-Zones & M15 Sniper Model: London Open (07-11 Server) & New York Open (13-17 Server) Kill-Zones Engine, Asian Chop Shield, Single Position M15 Confirmed Close Sniper, Structure SL (300-600 pts) & 1:2.5 RR TP, True Zero-Loss Commission-Aware BE, Golden Pocket 50-61.8% Fib, Prop Firm 4% Drawdown Defense, In-EA Autonomous Self-Updater."
 }
