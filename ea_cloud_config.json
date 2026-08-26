@@ -1,7 +1,7 @@
 {
-  "version": "5.30",
+  "version": "6.00",
   "sync_interval_min": 5,
-  "engine_name": "XAUUSD Apex Fleet Scalper Engine (Zero-Bottleneck)",
+  "engine_name": "XAUUSD Apex Hybrid Brain Master (Scalp M1 + Swing H4 Dual-Engine)",
   "auto_lot": true,
   "balance_per_step": 500.0,
   "lot_per_step": 0.01,
@@ -10,6 +10,8 @@
   "max_spread_points": 80,
   "max_open_positions": 3,
   "min_layer_distance_points": 30,
+  "enable_scalping_engine": true,
+  "enable_swing_engine": true,
   "use_regime_switching": true,
   "use_session_vwap": true,
   "use_asian_sweep_trap": true,
@@ -30,5 +32,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v5.30 Aktif - Enterprise Fleet Edition: Identifikasi Akun ID Unik, Heartbeat Pulse, dan Arsitektur Zero-Bottleneck."
+  "status_message": "OTA v6.00 Unified Master Brain Aktif: Mesin Dual-Engine (M1 Fast Scalper + H4 Sentinel Swing Runner) dalam 1 EA tunggal terintegrasi."
 }
