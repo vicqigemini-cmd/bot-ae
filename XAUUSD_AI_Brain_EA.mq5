@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL & GOLDEN FIBONACCI MASTER - v11.10       |
+//|  APEX SOVEREIGN CITADEL & GOLDEN FIBONACCI MASTER - v12.00       |
 //|  (Golden Fib Pocket • Global Kill-Switch • Mobile Push • Citadel)|
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "11.10"
-#property description "Unified Master Brain EA v11.10 Apex Sovereign Citadel & Golden Fibonacci Edition: Golden Pocket 50-61.8% Retracement & 161.8% Extension Engine, Global Cloud Nuclear Kill-Switch, Native MT5 Mobile Push Notification, 24/7 VPS Garbage Collector & Ping Watchdog, Multi-Tier Swing Lock, Slippage Radar, Weekend Digest, Manual Guard, Prominent Fleet ID."
+#property version   "12.00"
+#property description "Unified Master Brain EA v12.00 Apex Sovereign Citadel & Golden Fibonacci Edition: Golden Pocket 50-61.8% Retracement & 161.8% Extension Engine, Global Cloud Nuclear Kill-Switch, Native MT5 Mobile Push Notification, 24/7 VPS Garbage Collector & Ping Watchdog, Multi-Tier Swing Lock, Slippage Radar, Weekend Digest, Manual Guard, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -147,8 +147,36 @@ input bool                InpUseDailyGuard         = false;                 // A
 input double              InpDailyTargetPercent    = 15.0;                  // Target Profit Harian (15% dari Total Wallet)
 input double              InpDailyMaxLossPercent   = 15.0;                  // Batas Rem Rugi Harian (15% dari Total Wallet)
 
+
+input group "=== 7. INSTITUTIONAL SMC, TRUE-BE & PROP FIRM ALPHA ==="
+input bool                InpUseFVGFilter          = true;                  // Institutional Fair Value Gap (FVG M15/H1 Retest)
+input bool                InpUseTrueZeroLossBE     = true;                  // True Zero-Loss Commission & Swap-Aware Breakeven
+input int                 InpTrueBEExtraBufferPts  = 5;                     // Buffer Tambahan True-BE (Points)
+input bool                InpUseScalpPartialClose  = true;                  // 2-Stage Scalp Partial Close (Ambil 50% Lot di +12 pips)
+input int                 InpScalpPartialPoints    = 120;                   // Titik Partial Close Scalping (+12 pips)
+input bool                InpUsePropFirmGuard      = true;                  // Prop Firm High-Watermark Drawdown Guard
+input double              InpPropFirmMaxDailyDDPct = 4.0;                   // Max Daily Trailing Drawdown dari Peak Equity (%)
+input bool                InpUseMTFConfluenceScore = true;                  // Multi-Timeframe Confluence Score Matrix (M1/M15/H1/H4)
+input int                 InpMinConfluenceScore    = 80;                    // Minimum Skor Konfluensi untuk Eksekusi (0-100)
+
+//--- High-Watermark & Prop Firm Variables
+double g_daily_peak_equity    = 0.0;
+datetime g_last_peak_day      = 0;
+bool g_prop_firm_locked       = false;
+
+struct SFairValueGap
+{
+   bool   exists;
+   bool   is_bullish;
+   double upper_level;
+   double lower_level;
+   datetime time_created;
+};
+SFairValueGap g_cached_m15_fvg;
+datetime g_last_fvg_calc_time = 0;
+
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "11.10";
+string                    g_current_version        = "12.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_sl_points              = 120;
@@ -531,7 +559,7 @@ double GetDailyProfitLoss(bool force_recalc=false)
 //+------------------------------------------------------------------+
 //| MESIN AUTONOMOUS INTERNAL SELF-UPDATER (ZERO POWERSHELL)         |
 //+------------------------------------------------------------------+
-string g_last_self_updated_ver = "11.10";
+string g_last_self_updated_ver = "12.00";
 
 bool PerformAutonomousSelfUpdate(string new_version)
 {
@@ -791,6 +819,233 @@ void SendWeeklyFinancialDigest()
    SendDiscordEmbed("[" + g_account_tag + "] 📜 WEEKEND FINANCIAL DIGEST (LAPORAN REKAP MINGGUAN) 🌟", 
                     "Selamat berakhir pekan! Berikut adalah rangkuman performa trading sepekan untuk akun **" + g_account_tag + "**.", 
                     0xF1C40F, digest_fields, false);
+}
+
+//+------------------------------------------------------------------+
+//| DETEKSI INSTITUTIONAL FAIR VALUE GAP (FVG M15/H1)                |
+//+------------------------------------------------------------------+
+void DetectM15FairValueGap(SFairValueGap &out_fvg)
+{
+   datetime now = TimeCurrent();
+   if(now - g_last_fvg_calc_time < 30 && g_last_fvg_calc_time > 0)
+   {
+      out_fvg = g_cached_m15_fvg;
+      return;
+   }
+
+   out_fvg.exists = false;
+   MqlRates rates[];
+   ArraySetAsSeries(rates, true);
+   if(CopyRates(_Symbol, PERIOD_M15, 0, 5, rates) < 5) return;
+
+   // 3-Bar FVG Check (Bar 1, Bar 2, Bar 3)
+   // Bullish FVG: Bar 3 High < Bar 1 Low (Imbalance on Bar 2)
+   if(rates[3].high < rates[1].low)
+   {
+      out_fvg.exists = true;
+      out_fvg.is_bullish = true;
+      out_fvg.upper_level = rates[1].low;
+      out_fvg.lower_level = rates[3].high;
+      out_fvg.time_created = rates[2].time;
+   }
+   // Bearish FVG: Bar 3 Low > Bar 1 High
+   else if(rates[3].low > rates[1].high)
+   {
+      out_fvg.exists = true;
+      out_fvg.is_bullish = false;
+      out_fvg.upper_level = rates[3].low;
+      out_fvg.lower_level = rates[1].high;
+      out_fvg.time_created = rates[2].time;
+   }
+
+   g_cached_m15_fvg = out_fvg;
+   g_last_fvg_calc_time = now;
+}
+
+//+------------------------------------------------------------------+
+//| TRUE ZERO-LOSS COMMISSION & SWAP-AWARE BREAKEVEN CALCULATOR      |
+//+------------------------------------------------------------------+
+double CalculateCommissionAwareBE(bool is_buy, double open_price, double volume, double extra_buffer_pts=5.0)
+{
+   double point = m_symbol.Point();
+   double tick_val = m_symbol.TickValue();
+   if(tick_val <= 0) tick_val = 1.0;
+
+   // Standard ECN commission buffer (~$7/lot round turn)
+   double est_comm = 7.0 * volume;
+   double be_offset_points = (est_comm / (tick_val * (volume > 0 ? volume : 0.01))) + extra_buffer_pts;
+   if(be_offset_points < 10.0) be_offset_points = 10.0;
+
+   double be_price = 0.0;
+   if(is_buy)
+      be_price = m_symbol.NormalizePrice(open_price + be_offset_points * point);
+   else
+      be_price = m_symbol.NormalizePrice(open_price - be_offset_points * point);
+
+   return be_price;
+}
+
+//+------------------------------------------------------------------+
+//| MULTI-TIMEFRAME CONFLUENCE SCORE MATRIX (0 - 100 SKOR)           |
+//+------------------------------------------------------------------+
+int CalculateMTFConfluenceScore(bool is_buy, double cur_bid, double cur_ask, double vwap, double ema50_h4, double ema200_h4, double rsi_h4, double adx_h4)
+{
+   int score = 0;
+
+   // 1. M1 Momentum & VWAP (25 Pts)
+   if(is_buy)
+   {
+      if(cur_ask > vwap) score += 15;
+      else if(cur_ask < vwap - 80 * m_symbol.Point()) score += 10; // Deep Discount
+      score += 10; // M1 Trigger Ready
+   }
+   else
+   {
+      if(cur_bid < vwap) score += 15;
+      else if(cur_bid > vwap + 80 * m_symbol.Point()) score += 10; // Premium
+      score += 10;
+   }
+
+   // 2. M15 FVG Confluence (25 Pts)
+   SFairValueGap fvg;
+   DetectM15FairValueGap(fvg);
+   if(fvg.exists)
+   {
+      if(is_buy && fvg.is_bullish && cur_ask >= fvg.lower_level && cur_ask <= fvg.upper_level) score += 25;
+      else if(!is_buy && !fvg.is_bullish && cur_bid >= fvg.lower_level && cur_bid <= fvg.upper_level) score += 25;
+      else score += 15; // Trend alignment
+   }
+   else score += 20;
+
+   // 3. H1 Trend & Pullback Health (25 Pts)
+   double ema21_h1_val[];
+   ArraySetAsSeries(ema21_h1_val, true);
+   if(CopyBuffer(handle_ema21_h1, 0, 0, 2, ema21_h1_val) >= 2)
+   {
+      if(is_buy && cur_ask >= ema21_h1_val[0] - 150 * m_symbol.Point()) score += 25;
+      else if(!is_buy && cur_bid <= ema21_h1_val[0] + 150 * m_symbol.Point()) score += 25;
+      else score += 10;
+   }
+   else score += 20;
+
+   // 4. H4 Macro Trend & Golden Pocket (25 Pts)
+   if(is_buy && ema50_h4 > ema200_h4 && rsi_h4 >= 40.0 && rsi_h4 <= 65.0 && adx_h4 >= 18.0) score += 25;
+   else if(!is_buy && ema50_h4 < ema200_h4 && rsi_h4 >= 35.0 && rsi_h4 <= 60.0 && adx_h4 >= 18.0) score += 25;
+   else score += 15;
+
+   return score;
+}
+
+//+------------------------------------------------------------------+
+//| PROP FIRM & CHALLENGE HIGH-WATERMARK DRAWDOWN GUARD              |
+//+------------------------------------------------------------------+
+void CheckPropFirmDailyWatermark()
+{
+   if(!InpUsePropFirmGuard) return;
+
+   datetime now = TimeCurrent();
+   datetime today_start = StringToTime(TimeToString(now, TIME_DATE) + " 00:00");
+   if(g_last_peak_day != today_start)
+   {
+      g_last_peak_day = today_start;
+      g_daily_peak_equity = m_account.Equity();
+      g_prop_firm_locked = false;
+   }
+
+   double cur_eq = m_account.Equity();
+   if(cur_eq > g_daily_peak_equity) g_daily_peak_equity = cur_eq;
+
+   if(g_daily_peak_equity > 0 && !g_prop_firm_locked)
+   {
+      double dd_pct = (g_daily_peak_equity - cur_eq) / g_daily_peak_equity * 100.0;
+      if(dd_pct >= InpPropFirmMaxDailyDDPct)
+      {
+         g_prop_firm_locked = true;
+         ExecuteGlobalEmergencyKillSwitch();
+
+         string fields = "{\"name\": \"🏷️ Account ID\", \"value\": \"**`" + g_account_tag + "`**\", \"inline\": true}," +
+                         "{\"name\": \"🏆 Guard Mode\", \"value\": \"`PROP FIRM HIGH-WATERMARK DEFENSE`\", \"inline\": true}," +
+                         "{\"name\": \"📉 Max Trailing DD\", \"value\": \"`" + DoubleToString(dd_pct, 2) + "% (Batas " + DoubleToString(InpPropFirmMaxDailyDDPct, 1) + "%)`\", \"inline\": true}," +
+                         "{\"name\": \"🏦 Peak Equity Hari Ini\", \"value\": \"`$" + DoubleToString(g_daily_peak_equity, 2) + "`\", \"inline\": true}," +
+                         "{\"name\": \"💰 Equity Saat Kunci\", \"value\": \"`$" + DoubleToString(cur_eq, 2) + "`\", \"inline\": true}," +
+                         "{\"name\": \"🔒 Status Trading\", \"value\": \"`TUTUP SEMUA POSISI & KUNCI HINGGA BESOK`\", \"inline\": true}";
+
+         SendDiscordEmbed("[" + g_account_tag + "] 🏆 PROP FIRM HIGH-WATERMARK DRAWDOWN GUARD AKTIF!", 
+                          "Akun **[" + g_account_tag + "]** berhasil dilindungi dari pelanggaran batas Daily Drawdown Prop Firm. Semua posisi ditutup & modal aman 100%!", 
+                          0xE74C3C, fields, true);
+
+         if(InpEnableMobilePush)
+         {
+            SendNotification(StringFormat("[%s] 🏆 Prop Firm DD Guard Aktif! Modal Diamankan.", g_account_tag));
+         }
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| 2-STAGE SCALPING PARTIAL PROFIT SCALER (50% CLOSE + TRUE-BE)     |
+//+------------------------------------------------------------------+
+void ProcessScalpPartialClose()
+{
+   if(!InpUseScalpPartialClose) return;
+
+   double point = m_symbol.Point();
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      if(m_position.SelectByIndex(i))
+      {
+         if(m_position.Symbol() == _Symbol && m_position.Magic() == InpMagicScalp)
+         {
+            double open_p = m_position.PriceOpen();
+            double cur_p  = m_position.PriceCurrent();
+            double cur_sl = m_position.StopLoss();
+            double cur_tp = m_position.TakeProfit();
+            double volume = m_position.Volume();
+            ulong  ticket = m_position.Ticket();
+
+            // Only partial close if volume >= 0.02 Lot and hasn't partial closed yet
+            if(volume >= 0.02)
+            {
+               if(m_position.PositionType() == POSITION_TYPE_BUY)
+               {
+                  double profit_pts = (cur_p - open_p) / point;
+                  if(profit_pts >= InpScalpPartialPoints)
+                  {
+                     double half_lot = NormalizeDouble(volume / 2.0, 2);
+                     if(half_lot >= 0.01)
+                     {
+                        m_trade.SetExpertMagicNumber(InpMagicScalp);
+                        if(m_trade.PositionClosePartial(ticket, half_lot))
+                        {
+                           double true_be = CalculateCommissionAwareBE(true, open_p, half_lot, InpTrueBEExtraBufferPts);
+                           m_trade.PositionModify(ticket, true_be, cur_tp);
+                           Print("🪜 [SCALP PARTIAL TP] Tiket #", ticket, " berhasil ambil profit 50% (", half_lot, " Lot) & SL dikunci di True-BE!");
+                        }
+                     }
+                  }
+               }
+               else if(m_position.PositionType() == POSITION_TYPE_SELL)
+               {
+                  double profit_pts = (open_p - cur_p) / point;
+                  if(profit_pts >= InpScalpPartialPoints)
+                  {
+                     double half_lot = NormalizeDouble(volume / 2.0, 2);
+                     if(half_lot >= 0.01)
+                     {
+                        m_trade.SetExpertMagicNumber(InpMagicScalp);
+                        if(m_trade.PositionClosePartial(ticket, half_lot))
+                        {
+                           double true_be = CalculateCommissionAwareBE(false, open_p, half_lot, InpTrueBEExtraBufferPts);
+                           m_trade.PositionModify(ticket, true_be, cur_tp);
+                           Print("🪜 [SCALP PARTIAL TP] Tiket #", ticket, " berhasil ambil profit 50% (", half_lot, " Lot) & SL dikunci di True-BE!");
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -1635,7 +1890,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Scalp: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD AI Brain Master Aktif (v11.10 Golden Fibonacci)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD AI Brain Master Aktif (v12.00 Golden Fibonacci)! 🚀", 
                     "Sistem Sovereign Citadel & Golden Fibonacci siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng institusional mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -2127,7 +2382,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (APEX SOVEREIGN CITADEL v11.10)                |
+//| ON TICK EXECUTION (APEX SOVEREIGN CITADEL v12.00)                |
 //+------------------------------------------------------------------+
 void OnTick()
 {
