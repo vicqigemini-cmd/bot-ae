@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL v19.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
+//|  APEX SOVEREIGN CITADEL v20.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
 //|  (SMC FVG • Golden Pocket 50-61.8% • 1:2.5 RR • Anti-Rungkad)    |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "19.00"
-#property description "Unified Master Brain EA v19.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
+#property version   "20.00"
+#property description "Unified Master Brain EA v20.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -158,8 +158,8 @@ input double              InpMaxPortfolioRiskPct   = 2.0;                   // B
 input int                 InpMaxTotalOpenTradesAll = 3;                     // Batas Maksimal Total Posisi Terbuka Seluruh Portofolio
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "19.00";
-string                    g_last_self_updated_ver  = "19.00";
+string                    g_current_version        = "20.00";
+string                    g_last_self_updated_ver  = "20.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_max_spread             = 70;
@@ -835,6 +835,20 @@ void CalculateH4FibonacciLevels(SFibLevels &out_fib, int lookback_bars=24)
 }
 
 //+------------------------------------------------------------------+
+//| PEMILIHAN TIPE FILLING ORDER OTOMATIS ANTI-REJECTION             |
+//+------------------------------------------------------------------+
+void SetOptimalFillingMode()
+{
+   uint filling = (uint)SymbolInfoInteger(_Symbol, SYMBOL_FILLING_MODE);
+   if((filling & SYMBOL_FILLING_IOC) != 0)
+      m_trade.SetTypeFilling(ORDER_FILLING_IOC);
+   else if((filling & SYMBOL_FILLING_FOK) != 0)
+      m_trade.SetTypeFilling(ORDER_FILLING_FOK);
+   else
+      m_trade.SetTypeFilling(ORDER_FILLING_RETURN);
+}
+
+//+------------------------------------------------------------------+
 //| KALIBRASI PARAMETER SWING ADAPTIF (FOREX SWING PLAYBOOK)         |
 //+------------------------------------------------------------------+
 void GetAdaptiveSwingParameters(string symbol, int &out_sl_pts, int &out_tp1_pts, int &out_tp2_pts)
@@ -1272,15 +1286,17 @@ void CalculateM15StructuralSLTP(bool is_buy, double &out_sl_pts, double &out_tp_
 //+------------------------------------------------------------------+
 bool IsHighImpactNewsTime()
 {
+   if(!InpUseRedNewsGuard) return false;
+   datetime gmt_now = TimeGMT();
    MqlDateTime dt;
-   TimeToStruct(TimeCurrent(), dt);
+   TimeToStruct(gmt_now, dt);
    if(dt.day_of_week >= 1 && dt.day_of_week <= 5)
    {
-      if(dt.hour == 15 && dt.min >= 15 && dt.min <= 45) return true; // 15:30 US Data
-      if(dt.hour == 17 && dt.min >= 45) return true;                  // 18:00 US Data
-      if(dt.hour == 18 && dt.min <= 15) return true;
-      if(dt.hour == 21 && dt.min >= 45) return true;                  // 22:00 FOMC
-      if(dt.hour == 22 && dt.min <= 30) return true;
+      double gmt_dec = dt.hour + (dt.min / 60.0);
+      // US High-Impact Data (NFP, CPI, PPI, Retail Sales): 12:15 - 13:45 UTC
+      if(gmt_dec >= 12.25 && gmt_dec <= 13.75) return true;
+      // US FOMC Interest Rate & Fed Press Conf: 17:45 - 19:15 UTC
+      if(gmt_dec >= 17.75 && gmt_dec <= 19.25) return true;
    }
    return false;
 }
@@ -1442,7 +1458,7 @@ int OnInit()
    m_symbol.Refresh();
 
    m_trade.SetMarginMode();
-   m_trade.SetTypeFillingBySymbol(_Symbol);
+   SetOptimalFillingMode();
    m_trade.SetDeviationInPoints(40);
 
    InitAccountMetadata();
@@ -1492,7 +1508,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Lot Size Model\", \"value\": \"`" + (InpLotType == LOT_RISK_PERCENT ? "1.0% Equity Risk (" + DoubleToString(current_lot, 2) + " Lot)" : "Fixed/Step") + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v19.00 Anti-Rungkad)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v20.00 Anti-Rungkad)! 🚀", 
                     "Sistem M15 Single-Entry Sniper siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng kuantitatif mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -1821,7 +1837,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v19.00)        |
+//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v20.00)        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
@@ -1955,14 +1971,15 @@ void OnTick()
    if(CopyBuffer(handle_rsi_h4, 0, 0, 2, rsi_h4_buf) <= 0) return;
    if(CopyBuffer(handle_adx_h4, 0, 0, 2, adx_h4_buf) <= 0) return;
 
-   double ema50_m15 = ema50_m15_buf[0];
-   double rsi_m15   = rsi_m15_buf[0];
-   double ema50_h1  = ema50_h1_buf[0];
-   double ema21_h1  = ema21_h1_buf[0];
-   double ema50_h4  = ema50_h4_buf[0];
-   double ema200_h4 = ema200_h4_buf[0];
-   double rsi_h4    = rsi_h4_buf[0];
-   double adx_h4    = adx_h4_buf[0];
+   SetOptimalFillingMode();
+   double ema50_m15 = ema50_m15_buf[1];
+   double rsi_m15   = rsi_m15_buf[1];
+   double ema50_h1  = ema50_h1_buf[1];
+   double ema21_h1  = ema21_h1_buf[1];
+   double ema50_h4  = ema50_h4_buf[1];
+   double ema200_h4 = ema200_h4_buf[1];
+   double rsi_h4    = rsi_h4_buf[1];
+   double adx_h4    = adx_h4_buf[1];
 
    bool macro_bullish = (rates_m15[1].close > ema50_h1) && (ema50_h4 > ema200_h4);
    bool macro_bearish = (rates_m15[1].close < ema50_h1) && (ema50_h4 < ema200_h4);
@@ -2050,7 +2067,9 @@ void OnTick()
       double bid_now = m_symbol.Bid();
       double point = m_symbol.Point();
 
-      bool is_trend_strong = (adx_h4 >= InpSwingMinADX);
+      ENUM_ASSET_CLASS asset_for_adx = GetAssetClass(_Symbol);
+      double min_adx_threshold = (asset_for_adx == ASSET_GOLD) ? InpSwingMinADX : (asset_for_adx == ASSET_FOREX) ? 16.0 : 18.0;
+      bool is_trend_strong = (adx_h4 >= min_adx_threshold);
       bool buy_dist_ok = ((ask_now - ema21_h1) / point <= InpSwingMaxChasePts);
       bool sell_dist_ok = ((ema21_h1 - bid_now) / point <= InpSwingMaxChasePts);
 
