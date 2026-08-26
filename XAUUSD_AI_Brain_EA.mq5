@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL v17.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
+//|  APEX SOVEREIGN CITADEL v18.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
 //|  (SMC FVG • Golden Pocket 50-61.8% • 1:2.5 RR • Anti-Rungkad)    |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "17.00"
-#property description "Unified Master Brain EA v17.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
+#property version   "18.00"
+#property description "Unified Master Brain EA v18.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -158,8 +158,8 @@ input double              InpMaxPortfolioRiskPct   = 2.0;                   // B
 input int                 InpMaxTotalOpenTradesAll = 3;                     // Batas Maksimal Total Posisi Terbuka Seluruh Portofolio
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "17.00";
-string                    g_last_self_updated_ver  = "17.00";
+string                    g_current_version        = "18.00";
+string                    g_last_self_updated_ver  = "18.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_max_spread             = 70;
@@ -290,7 +290,8 @@ void RecoverConsecutiveLossesFromHistory()
          long deal_magic = HistoryDealGetInteger(deal_ticket, DEAL_MAGIC);
          long deal_entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
 
-         if((deal_magic == InpMagicSniper || deal_magic == InpMagicSwing) &&
+         string deal_sym = HistoryDealGetString(deal_ticket, DEAL_SYMBOL);
+         if(deal_sym == _Symbol && (deal_magic == InpMagicSniper || deal_magic == InpMagicSwing) &&
             (deal_entry == DEAL_ENTRY_OUT || deal_entry == DEAL_ENTRY_INOUT || deal_entry == DEAL_ENTRY_OUT_BY))
          {
             double profit = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT) +
@@ -341,7 +342,8 @@ double GetWeeklyProfitLoss()
          long deal_magic = HistoryDealGetInteger(deal_ticket, DEAL_MAGIC);
          long deal_entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
 
-         if((deal_magic == InpMagicSniper || deal_magic == InpMagicSwing || deal_magic == 0) &&
+         string deal_sym = HistoryDealGetString(deal_ticket, DEAL_SYMBOL);
+         if(deal_sym == _Symbol && (deal_magic == InpMagicSniper || deal_magic == InpMagicSwing || deal_magic == 0) &&
             (deal_entry == DEAL_ENTRY_OUT || deal_entry == DEAL_ENTRY_INOUT || deal_entry == DEAL_ENTRY_OUT_BY))
          {
             total_profit += HistoryDealGetDouble(deal_ticket, DEAL_PROFIT) +
@@ -567,7 +569,8 @@ double GetDailyProfitLoss(bool force_recalc=false)
          long deal_magic = HistoryDealGetInteger(deal_ticket, DEAL_MAGIC);
          long deal_entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
 
-         if((deal_magic == InpMagicSniper || deal_magic == InpMagicSwing || deal_magic == 0) &&
+         string deal_sym = HistoryDealGetString(deal_ticket, DEAL_SYMBOL);
+         if(deal_sym == _Symbol && (deal_magic == InpMagicSniper || deal_magic == InpMagicSwing || deal_magic == 0) &&
             (deal_entry == DEAL_ENTRY_OUT || deal_entry == DEAL_ENTRY_INOUT || deal_entry == DEAL_ENTRY_OUT_BY))
          {
             total_profit += HistoryDealGetDouble(deal_ticket, DEAL_PROFIT) +
@@ -735,6 +738,20 @@ void CalculateM15FibonacciLevels(SFibLevels &out_fib, int lookback_bars=24)
    out_fib.swing_low  = lowest;
    double range = highest - lowest;
 
+   ENUM_ASSET_CLASS asset = GetAssetClass(_Symbol);
+   double min_range_pts = (asset == ASSET_GOLD) ? 250.0 : (asset == ASSET_INDEX) ? 400.0 : 150.0;
+   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   if(point <= 0) point = 0.001;
+
+   if(range / point < min_range_pts)
+   {
+      out_fib.fib_500 = 0.0;
+      out_fib.fib_618 = 0.0;
+      out_fib.fib_786 = 0.0;
+      out_fib.fib_1618_ext = 0.0;
+      return;
+   }
+
    if(low_idx > high_idx)
    {
       out_fib.is_uptrend = true;
@@ -781,6 +798,20 @@ void CalculateH4FibonacciLevels(SFibLevels &out_fib, int lookback_bars=24)
    out_fib.swing_high = highest;
    out_fib.swing_low  = lowest;
    double range = highest - lowest;
+
+   ENUM_ASSET_CLASS asset = GetAssetClass(_Symbol);
+   double min_range_pts = (asset == ASSET_GOLD) ? 250.0 : (asset == ASSET_INDEX) ? 400.0 : 150.0;
+   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   if(point <= 0) point = 0.001;
+
+   if(range / point < min_range_pts)
+   {
+      out_fib.fib_500 = 0.0;
+      out_fib.fib_618 = 0.0;
+      out_fib.fib_786 = 0.0;
+      out_fib.fib_1618_ext = 0.0;
+      return;
+   }
 
    if(low_idx > high_idx)
    {
@@ -917,23 +948,29 @@ bool IsInsideInstitutionalKillZone(string &out_session_name)
       return true;
    }
 
+   datetime gmt_time = TimeGMT();
    MqlDateTime dt;
-   TimeToStruct(TimeCurrent(), dt);
-   int hour = dt.hour;
+   TimeToStruct(gmt_time, dt);
+   int gmt_hour = dt.hour;
+   int gmt_min  = dt.min;
+   double gmt_dec = gmt_hour + (gmt_min / 60.0);
 
-   if(InpTradeLondonKZ && hour >= InpLondonKZStartHour && hour <= InpLondonKZEndHour)
+   // London Open Kill-Zone: 07:00 - 11:00 UTC (14:00 - 18:00 WIB)
+   if(InpTradeLondonKZ && (gmt_dec >= 7.0 && gmt_dec <= 11.0))
    {
-      out_session_name = "LONDON KILL-ZONE 🏛️ (07-11 Server)";
+      out_session_name = "LONDON KILL-ZONE 🏛️ (07:00-11:00 UTC)";
       return true;
    }
 
-   if(InpTradeNYKZ && hour >= InpNYKZStartHour && hour <= InpNYKZEndHour)
+   // New York Open Kill-Zone: 12:30 - 16:30 UTC (19:30 - 23:30 WIB)
+   if(InpTradeNYKZ && (gmt_dec >= 12.5 && gmt_dec <= 16.5))
    {
-      out_session_name = "NEW YORK KILL-ZONE ⚡ (13-17 Server)";
+      out_session_name = "NEW YORK KILL-ZONE ⚡ (12:30-16:30 UTC)";
       return true;
    }
 
-   if(InpTradeAsianSession && (hour >= 0 && hour < InpLondonKZStartHour))
+   // Asian Session: 00:00 - 06:30 UTC (07:00 - 13:30 WIB)
+   if(InpTradeAsianSession && (gmt_dec >= 0.0 && gmt_dec < 7.0))
    {
       out_session_name = "ASIAN SESSION 🌏 (Low Volatility)";
       return true;
@@ -1368,7 +1405,8 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
          long deal_entry = HistoryDealGetInteger(deal_ticket, DEAL_ENTRY);
          string deal_comment = HistoryDealGetString(deal_ticket, DEAL_COMMENT);
 
-         if((deal_magic == InpMagicSniper || deal_magic == InpMagicSwing || deal_magic == 0) &&
+         string deal_sym = HistoryDealGetString(deal_ticket, DEAL_SYMBOL);
+         if(deal_sym == _Symbol && (deal_magic == InpMagicSniper || deal_magic == InpMagicSwing || deal_magic == 0) &&
             (deal_entry == DEAL_ENTRY_OUT || deal_entry == DEAL_ENTRY_INOUT || deal_entry == DEAL_ENTRY_OUT_BY))
          {
             double profit = HistoryDealGetDouble(deal_ticket, DEAL_PROFIT) + 
@@ -1449,7 +1487,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Lot Size Model\", \"value\": \"`" + (InpLotType == LOT_RISK_PERCENT ? "1.0% Equity Risk (" + DoubleToString(current_lot, 2) + " Lot)" : "Fixed/Step") + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v17.00 Anti-Rungkad)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v18.00 Anti-Rungkad)! 🚀", 
                     "Sistem M15 Single-Entry Sniper siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng kuantitatif mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -1775,7 +1813,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v17.00)        |
+//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v18.00)        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
@@ -2049,6 +2087,34 @@ void OnTick()
    if(m_symbol.Spread() > g_max_spread) return;
    if(TimeCurrent() < g_cooldown_until) return;
 
+   // 15.3 DIRECTIONAL CONCURRENCY LOCK (ANTI-BENTROKAN DUAL-ENGINE)
+   bool sniper_buy_locked_be = false, sniper_sell_locked_be = false;
+   bool swing_buy_locked_be  = false, swing_sell_locked_be  = false;
+
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      if(m_position.SelectByIndex(i) && m_position.Symbol() == _Symbol)
+      {
+         double p_sl = m_position.StopLoss();
+         double p_op = m_position.PriceOpen();
+         if(m_position.Magic() == InpMagicSniper)
+         {
+            if(m_position.PositionType() == POSITION_TYPE_BUY && p_sl >= p_op) sniper_buy_locked_be = true;
+            if(m_position.PositionType() == POSITION_TYPE_SELL && p_sl > 0 && p_sl <= p_op) sniper_sell_locked_be = true;
+         }
+         else if(m_position.Magic() == InpMagicSwing)
+         {
+            if(m_position.PositionType() == POSITION_TYPE_BUY && p_sl >= p_op) swing_buy_locked_be = true;
+            if(m_position.PositionType() == POSITION_TYPE_SELL && p_sl > 0 && p_sl <= p_op) swing_sell_locked_be = true;
+         }
+      }
+   }
+
+   bool can_sniper_buy  = (swing_buy == 0 || swing_buy_locked_be);
+   bool can_sniper_sell = (swing_sell == 0 || swing_sell_locked_be);
+   bool can_swing_buy   = (sniper_buy == 0 || sniper_buy_locked_be);
+   bool can_swing_sell  = (sniper_sell == 0 || sniper_sell_locked_be);
+
    // 15.5 PROTEKSI SHARED PORTFOLIO RISK MATRIX
    double open_port_risk = CalculateTotalPortfolioOpenRiskPct();
    bool is_portfolio_risk_ok = (open_port_risk + InpRiskPercent <= InpMaxPortfolioRiskPct) && (PositionsTotal() < InpMaxTotalOpenTradesAll);
@@ -2056,13 +2122,13 @@ void OnTick()
    // 16. EKSEKUSI MESIN 1: M15 SNIPER (SINGLE SNIPER ENTRY)
    if(InpEnableM15Sniper && sniper_total == 0 && is_in_killzone && is_portfolio_risk_ok)
    {
-      if(sniper_buy_sig)
+      if(sniper_buy_sig && can_sniper_buy)
       {
          double sl_pts = 0, tp_pts = 0;
          CalculateM15StructuralSLTP(true, sl_pts, tp_pts);
          ExecuteSniperOrder(ORDER_TYPE_BUY, sniper_reason, sl_pts, tp_pts);
       }
-      else if(sniper_sell_sig)
+      else if(sniper_sell_sig && can_sniper_sell)
       {
          double sl_pts = 0, tp_pts = 0;
          CalculateM15StructuralSLTP(false, sl_pts, tp_pts);
@@ -2071,13 +2137,13 @@ void OnTick()
    }
 
    // 17. EKSEKUSI MESIN 2: SWING H4 RUNNER
-   if(InpEnableSwingEngine && swing_total == 0 && (TimeCurrent() - last_swing_time >= 300))
+   if(InpEnableSwingEngine && swing_total == 0 && is_portfolio_risk_ok && (TimeCurrent() - last_swing_time >= 300))
    {
-      if(swing_buy_sig)
+      if(swing_buy_sig && can_swing_buy)
       {
          ExecuteSwingOrder(ORDER_TYPE_BUY, swing_reason);
       }
-      else if(swing_sell_sig)
+      else if(swing_sell_sig && can_swing_sell)
       {
          ExecuteSwingOrder(ORDER_TYPE_SELL, swing_reason);
       }
