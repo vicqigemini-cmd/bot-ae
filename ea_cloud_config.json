@@ -1,7 +1,7 @@
 {
-  "version": "4.60",
+  "version": "5.00",
   "sync_interval_min": 5,
-  "engine_name": "XAUUSD Ultimate Bulletproof Scalper Engine",
+  "engine_name": "XAUUSD Apex Quantitative Scalper Engine (Tier-1 Quants)",
   "auto_lot": true,
   "balance_per_step": 500.0,
   "lot_per_step": 0.01,
@@ -10,6 +10,12 @@
   "max_spread_points": 80,
   "max_open_positions": 3,
   "min_layer_distance_points": 30,
+  "use_regime_switching": true,
+  "use_session_vwap": true,
+  "use_asian_sweep_trap": true,
+  "use_triple_screen": true,
+  "use_defend_the_bag": true,
+  "defend_bag_profit_percent": 8.0,
   "use_dynamic_atr": true,
   "use_directional_lock": true,
   "use_rollover_guard": true,
@@ -24,5 +30,5 @@
   "use_daily_guard": true,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 7.0,
-  "status_message": "OTA v4.60 Aktif - Ultimate Armor: Red News Guard (CPI/NFP/FOMC) + Friday Auto-Close + Loss Circuit Breaker + Dynamic ATR."
+  "status_message": "OTA v5.00 Aktif - Apex Quant: 5 Pilar Institusional (Regime Switch + Session VWAP + Asian Sweep Trap + Triple Screen + Defend-The-Bag)."
 }
