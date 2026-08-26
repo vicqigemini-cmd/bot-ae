@@ -1,5 +1,5 @@
 {
-  "version": "3.25",
+  "version": "3.30",
   "sync_interval_min": 5,
   "engine_name": "XAUUSD AI-Brain Neural Scalper",
   "ai_confidence_threshold": 0.60,
@@ -9,6 +9,7 @@
   "stop_loss_points": 150,
   "take_profit_points": 300,
   "max_spread_points": 75,
+  "max_open_positions": 7,
   "use_trailing_stop": true,
   "trailing_start_points": 120,
   "trailing_distance_points": 80,
@@ -16,5 +17,5 @@
   "use_daily_guard": true,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 7.0,
-  "status_message": "OTA v3.25 Aktif - Sistem Pelaporan Double-Check Close Trade (+/- PnL & Saldo Terkini) 100% Terkirim."
+  "status_message": "OTA v3.30 Aktif - Multi-Layer Scalping: Max 7 Posisi Simultan Aktif."
 }
