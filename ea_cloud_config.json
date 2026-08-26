@@ -1,7 +1,7 @@
 {
-  "version": "20.00",
+  "version": "21.00",
   "sync_interval_min": 5,
-  "engine_name": "Apex Sovereign Perfection Edition (v20.00 Master Class)",
+  "engine_name": "Apex Sovereign Immortal Citadel (v21.00 Official Prop Firm & Partial Scaler Edition)",
   "emergency_close_all": false,
   "enable_auto_self_update": true,
   "enable_multi_pair_mode": true,
@@ -56,5 +56,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v20.00 Apex Sovereign Perfection Edition: Confirmed Closed Bar Deterministic Buf[1] Alignment (100% Repainting-Free), Asset-Adaptive ADX Threshold (Forex 16, Index 18, Gold 20), Smart Dynamic Filling Mode Fallback (IOC/FOK/RETURN Anti-Reject), UTC Real-World DST-Resilient Red News Shield, Immutable Initial Risk Trailing Engine, Prop Firm 4% Drawdown Defense, In-EA Autonomous Self-Updater."
+  "status_message": "OTA v21.00 Apex Sovereign Immortal Citadel Edition: Official FTMO Day-Start DD Standard (Anti-Floating Peak Trap), 2-Stage Partial Profit Scaler (50% Banked to Cash Wallet at +1.5R + Runner to +2.5R), Normalized Universal True-BE Offset, Harddisk GlobalVariable Recovery, Confirmed Closed Bar Deterministic Alignment, In-EA Autonomous Self-Updater."
 }
