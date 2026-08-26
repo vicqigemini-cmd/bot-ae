@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL v23.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
+//|  APEX SOVEREIGN CITADEL v24.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
 //|  (SMC FVG • Golden Pocket 50-61.8% • 1:2.5 RR • Anti-Rungkad)    |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "23.00"
-#property description "Unified Master Brain EA v23.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
+#property version   "24.00"
+#property description "Unified Master Brain EA v24.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -158,8 +158,8 @@ input double              InpMaxPortfolioRiskPct   = 2.0;                   // B
 input int                 InpMaxTotalOpenTradesAll = 3;                     // Batas Maksimal Total Posisi Terbuka Seluruh Portofolio
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "23.00";
-string                    g_last_self_updated_ver  = "23.00";
+string                    g_current_version        = "24.00";
+string                    g_last_self_updated_ver  = "24.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_max_spread             = 70;
@@ -1558,7 +1558,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Lot Size Model\", \"value\": \"`" + (InpLotType == LOT_RISK_PERCENT ? "1.0% Equity Risk (" + DoubleToString(current_lot, 2) + " Lot)" : "Fixed/Step") + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v23.00 Anti-Rungkad)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v24.00 Anti-Rungkad)! 🚀", 
                     "Sistem M15 Single-Entry Sniper siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng kuantitatif mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -1729,6 +1729,14 @@ void ManageOpenPositions()
                         m_trade.SetExpertMagicNumber(InpMagicSniper);
                         m_trade.PositionClosePartial(ticket, close_vol);
                         Print("💰 [PARTIAL CLOSE 50%] Sniper BUY #", ticket, " amankan ", close_vol, " Lot cuan tunai ke saldo!");
+
+                        string p_fields = "{\"name\": \"🏷️ Account ID\", \"value\": \"**`" + g_account_tag + "`**\", \"inline\": true}," +
+                                          "{\"name\": \"💰 Volume Diamankan\", \"value\": \"`" + DoubleToString(close_vol, 2) + " Lot (50% Scalp)`\", \"inline\": true}," +
+                                          "{\"name\": \"🔒 Status SL\", \"value\": \"`Dikunci di +0.5R (True-BE)`\", \"inline\": true}," +
+                                          "{\"name\": \"🚀 Sisa Runner\", \"value\": \"`" + DoubleToString(volume - close_vol, 2) + " Lot Mengejar +2.5R`\", \"inline\": true}";
+                        SendDiscordEmbed("[" + g_account_tag + "] 💰 50% PARTIAL PROFIT DIAMANKAN KE WALLET!", 
+                                         "Posisi Sniper BUY **" + _Symbol + "** surplus +1.5R! 50% cuan diamankan & sisa volume 100% bebas risiko.", 
+                                         0x2ECC71, p_fields, false);
                      }
                   }
                   m_trade.SetExpertMagicNumber(InpMagicSniper);
@@ -1770,6 +1778,14 @@ void ManageOpenPositions()
                         m_trade.SetExpertMagicNumber(InpMagicSniper);
                         m_trade.PositionClosePartial(ticket, close_vol);
                         Print("💰 [PARTIAL CLOSE 50%] Sniper SELL #", ticket, " amankan ", close_vol, " Lot cuan tunai ke saldo!");
+
+                        string p_fields = "{\"name\": \"🏷️ Account ID\", \"value\": \"**`" + g_account_tag + "`**\", \"inline\": true}," +
+                                          "{\"name\": \"💰 Volume Diamankan\", \"value\": \"`" + DoubleToString(close_vol, 2) + " Lot (50% Scalp)`\", \"inline\": true}," +
+                                          "{\"name\": \"🔒 Status SL\", \"value\": \"`Dikunci di +0.5R (True-BE)`\", \"inline\": true}," +
+                                          "{\"name\": \"🚀 Sisa Runner\", \"value\": \"`" + DoubleToString(volume - close_vol, 2) + " Lot Mengejar +2.5R`\", \"inline\": true}";
+                        SendDiscordEmbed("[" + g_account_tag + "] 💰 50% PARTIAL PROFIT DIAMANKAN KE WALLET!", 
+                                         "Posisi Sniper SELL **" + _Symbol + "** surplus +1.5R! 50% cuan diamankan & sisa volume 100% bebas risiko.", 
+                                         0x2ECC71, p_fields, false);
                      }
                   }
                   m_trade.SetExpertMagicNumber(InpMagicSniper);
@@ -1925,7 +1941,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v23.00)        |
+//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v24.00)        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
