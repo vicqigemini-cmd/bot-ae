@@ -1,7 +1,7 @@
 {
-  "version": "24.00",
+  "version": "25.00",
   "sync_interval_min": 5,
-  "engine_name": "Apex Sovereign Omniscience (v24.00 Full Lifecycle Webhook Edition)",
+  "engine_name": "Apex Sovereign Omniscience (v25.00 Strategy Tester & Live Unified Edition)",
   "emergency_close_all": false,
   "enable_auto_self_update": true,
   "enable_multi_pair_mode": true,
@@ -9,11 +9,11 @@
   "max_total_open_trades_all": 3,
   "use_kill_zones_only": true,
   "trade_london_kz": true,
-  "london_kz_start_hour": 7,
-  "london_kz_end_hour": 11,
+  "london_kz_start_hour": 8,
+  "london_kz_end_hour": 13,
   "trade_ny_kz": true,
   "ny_kz_start_hour": 13,
-  "ny_kz_end_hour": 17,
+  "ny_kz_end_hour": 19,
   "trade_asian_session": false,
   "enable_m15_sniper": true,
   "enable_swing_engine": true,
@@ -56,5 +56,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v24.00 Apex Sovereign Omniscience Edition: Full Lifecycle Webhooks (Startup/Update Alert, Open Trade Entry Card, 50% Partial Scaler Lock Embed, Trade Closed PnL Realized Embed on TP/SL), Event-Driven Zero-Lag PnL & Closed-Bar Caching, Risk-Free Portfolio Compounding, In-EA Autonomous Self-Updater."
+  "status_message": "OTA v25.00 Strategy Tester & Live Unified Edition: Fixed Prop Firm Daily DD Day-Start Reset (Eliminated False Kill-Switch Freeze in Tester), Fixed Kill-Zones Server Time Windows (London 08-13 Server, NY 13.5-19 Server), 100% Scalping Trade Execution Active Across Backtest & Live."
 }
