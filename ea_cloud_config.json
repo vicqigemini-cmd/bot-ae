@@ -1,5 +1,5 @@
 {
-  "version": "3.20",
+  "version": "3.25",
   "sync_interval_min": 5,
   "engine_name": "XAUUSD AI-Brain Neural Scalper",
   "ai_confidence_threshold": 0.60,
@@ -16,5 +16,5 @@
   "use_daily_guard": true,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 7.0,
-  "status_message": "OTA v3.20 Aktif - Notifikasi Lengkap Close Position (+/- PnL & Saldo Terkini) via Discord Webhook."
+  "status_message": "OTA v3.25 Aktif - Sistem Pelaporan Double-Check Close Trade (+/- PnL & Saldo Terkini) 100% Terkirim."
 }
