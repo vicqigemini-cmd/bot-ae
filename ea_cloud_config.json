@@ -1,9 +1,18 @@
 {
-  "version": "11.10",
+  "version": "12.00",
   "sync_interval_min": 5,
-  "engine_name": "XAUUSD Apex Sovereign Citadel & Golden Fibonacci Master (Hybrid Dual-Engine)",
+  "engine_name": "XAUUSD Apex Sovereign Citadel & Institutional SMC Master (Hybrid Dual-Engine)",
   "emergency_close_all": false,
   "enable_auto_self_update": true,
+  "use_fvg_filter": true,
+  "use_true_zero_loss_be": true,
+  "true_be_extra_buffer_points": 5,
+  "use_scalp_partial_close": true,
+  "scalp_partial_points": 120,
+  "use_prop_firm_guard": true,
+  "prop_firm_max_daily_dd_percent": 4.0,
+  "use_mtf_confluence_score": true,
+  "min_confluence_score": 80,
   "use_golden_fib_pocket": true,
   "use_micro_fib_scalp": true,
   "enable_mobile_push": true,
@@ -57,5 +66,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v11.10 Apex Sovereign Citadel: Embedded Autonomous Self-Updater (Zero PowerShell), Golden Pocket 50.0%-61.8% Retracement & 161.8% Extension, Global Cloud Nuclear Kill-Switch, Native MT5 Mobile Push, 24/7 VPS Garbage Collector, Multi-Tier Swing Lock, Slippage Radar, Weekend Digest, Manual Guard, Unique Prominent Fleet ID."
+  "status_message": "OTA v12.00 Apex Sovereign Citadel (Institutional SMC & True-BE Edition): Fair Value Gap (FVG M15/H1), True Zero-Loss Commission-Aware BE, 2-Stage Scalp Partial Take Profit, Prop Firm High-Watermark 4% Drawdown Defense, MTF Confluence Score Matrix (80/100), Golden Fib Pocket 50-61.8%, In-EA Autonomous Self-Updater, Global Cloud Nuclear Kill-Switch, Native MT5 Mobile Push, 24/7 VPS Garbage Collector."
 }
