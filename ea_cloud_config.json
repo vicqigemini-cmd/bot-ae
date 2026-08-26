@@ -1,7 +1,7 @@
 {
-  "version": "21.00",
+  "version": "22.00",
   "sync_interval_min": 5,
-  "engine_name": "Apex Sovereign Immortal Citadel (v21.00 Official Prop Firm & Partial Scaler Edition)",
+  "engine_name": "Apex Sovereign Invictus Citadel (v22.00 Weekend Gap Armor & Fixed Fib Edition)",
   "emergency_close_all": false,
   "enable_auto_self_update": true,
   "enable_multi_pair_mode": true,
@@ -56,5 +56,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v21.00 Apex Sovereign Immortal Citadel Edition: Official FTMO Day-Start DD Standard (Anti-Floating Peak Trap), 2-Stage Partial Profit Scaler (50% Banked to Cash Wallet at +1.5R + Runner to +2.5R), Normalized Universal True-BE Offset, Harddisk GlobalVariable Recovery, Confirmed Closed Bar Deterministic Alignment, In-EA Autonomous Self-Updater."
+  "status_message": "OTA v22.00 Apex Sovereign Invictus Citadel Edition: Weekend Swing Gap Protection (Mandatory Friday 21:00 cutoff for risky trades), Non-Flickering Fixed Bar 1-24 Fibonacci Sweep, Asset-Adaptive Slippage Deviation (Gold 50p, FX 30p, US30 100p), MTF History Pre-Warmer OnInit, Official FTMO Day-Start Standard, In-EA Autonomous Self-Updater."
 }
