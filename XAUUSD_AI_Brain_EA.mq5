@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL v20.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
+//|  APEX SOVEREIGN CITADEL v21.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
 //|  (SMC FVG • Golden Pocket 50-61.8% • 1:2.5 RR • Anti-Rungkad)    |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "20.00"
-#property description "Unified Master Brain EA v20.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
+#property version   "21.00"
+#property description "Unified Master Brain EA v21.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -158,8 +158,8 @@ input double              InpMaxPortfolioRiskPct   = 2.0;                   // B
 input int                 InpMaxTotalOpenTradesAll = 3;                     // Batas Maksimal Total Posisi Terbuka Seluruh Portofolio
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "20.00";
-string                    g_last_self_updated_ver  = "20.00";
+string                    g_current_version        = "21.00";
+string                    g_last_self_updated_ver  = "21.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_max_spread             = 70;
@@ -1039,71 +1039,6 @@ void DetectM15FairValueGap(SFairValueGap &out_fvg)
 }
 
 //+------------------------------------------------------------------+
-//| TRUE ZERO-LOSS COMMISSION-AWARE BREAKEVEN CALCULATOR             |
-//+------------------------------------------------------------------+
-double CalculateCommissionAwareBE(bool is_buy, double open_price, double volume, double extra_buffer_pts=5.0)
-{
-   double point = m_symbol.Point();
-   double tick_val = m_symbol.TickValue();
-   if(tick_val <= 0) tick_val = 1.0;
-
-   double est_comm = 7.0 * volume; // ~$7/lot round turn
-   double be_offset_points = (est_comm / (tick_val * (volume > 0 ? volume : 0.01))) + extra_buffer_pts;
-   if(be_offset_points < 10.0) be_offset_points = 10.0;
-
-   if(is_buy)
-      return m_symbol.NormalizePrice(open_price + be_offset_points * point);
-   else
-      return m_symbol.NormalizePrice(open_price - be_offset_points * point);
-}
-
-//+------------------------------------------------------------------+
-//| PROP FIRM & CHALLENGE HIGH-WATERMARK DRAWDOWN GUARD              |
-//+------------------------------------------------------------------+
-void CheckPropFirmDailyWatermark()
-{
-   if(!InpUsePropFirmGuard) return;
-
-   datetime now = TimeCurrent();
-   datetime today_start = StringToTime(TimeToString(now, TIME_DATE) + " 00:00");
-   if(g_last_peak_day != today_start)
-   {
-      g_last_peak_day = today_start;
-      g_daily_peak_equity = m_account.Equity();
-      g_prop_firm_locked = false;
-   }
-
-   double cur_eq = m_account.Equity();
-   if(cur_eq > g_daily_peak_equity) g_daily_peak_equity = cur_eq;
-
-   if(g_daily_peak_equity > 0 && !g_prop_firm_locked)
-   {
-      double dd_pct = (g_daily_peak_equity - cur_eq) / g_daily_peak_equity * 100.0;
-      if(dd_pct >= InpPropFirmMaxDailyDDPct)
-      {
-         g_prop_firm_locked = true;
-         ExecuteGlobalEmergencyKillSwitch();
-
-         string fields = "{\"name\": \"🏷️ Account ID\", \"value\": \"**`" + g_account_tag + "`**\", \"inline\": true}," +
-                         "{\"name\": \"🏆 Guard Mode\", \"value\": \"`PROP FIRM HIGH-WATERMARK DEFENSE`\", \"inline\": true}," +
-                         "{\"name\": \"📉 Max Trailing DD\", \"value\": \"`" + DoubleToString(dd_pct, 2) + "% (Batas " + DoubleToString(InpPropFirmMaxDailyDDPct, 1) + "%)`\", \"inline\": true}," +
-                         "{\"name\": \"🏦 Peak Equity Hari Ini\", \"value\": \"`$" + DoubleToString(g_daily_peak_equity, 2) + "`\", \"inline\": true}," +
-                         "{\"name\": \"💰 Equity Terkunci\", \"value\": \"`$" + DoubleToString(cur_eq, 2) + "`\", \"inline\": true}," +
-                         "{\"name\": \"🔒 Status Trading\", \"value\": \"`TUTUP SEMUA POSISI & KUNCI HINGGA BESOK`\", \"inline\": true}";
-
-         SendDiscordEmbed("[" + g_account_tag + "] 🏆 PROP FIRM HIGH-WATERMARK DRAWDOWN GUARD AKTIF!", 
-                          "Akun **[" + g_account_tag + "]** dilindungi dari batas Max Daily Drawdown. Semua posisi ditutup & modal aman 100%!", 
-                          0xE74C3C, fields, true);
-
-         if(InpEnableMobilePush)
-         {
-            SendNotification(StringFormat("[%s] 🏆 Prop Firm DD Guard Aktif! Modal Diamankan.", g_account_tag));
-         }
-      }
-   }
-}
-
-//+------------------------------------------------------------------+
 //| HITUNG NILAI 1 POINT PER 1.00 LOT DALAM MATA UANG AKUN           |
 //+------------------------------------------------------------------+
 double CalculatePointValueInDepositCurrency()
@@ -1119,6 +1054,83 @@ double CalculatePointValueInDepositCurrency()
    double point_val = (tick_val / tick_size) * point;
    if(point_val <= 0) point_val = 1.0;
    return point_val;
+}
+
+//+------------------------------------------------------------------+
+//| TRUE ZERO-LOSS COMMISSION-AWARE BREAKEVEN CALCULATOR             |
+//+------------------------------------------------------------------+
+double CalculateCommissionAwareBE(bool is_buy, double open_price, double volume, double extra_buffer_pts=5.0)
+{
+   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   if(point <= 0) point = 0.001;
+   double point_val = CalculatePointValueInDepositCurrency();
+   if(point_val <= 0) point_val = 1.0;
+
+   double est_comm_per_lot = 7.0; // ~$7/lot standard round turn
+   double comm_pts = (est_comm_per_lot / point_val) + extra_buffer_pts;
+   if(comm_pts < 5.0) comm_pts = 5.0;
+
+   if(is_buy)
+      return m_symbol.NormalizePrice(open_price + comm_pts * point);
+   else
+      return m_symbol.NormalizePrice(open_price - comm_pts * point);
+}
+
+//+------------------------------------------------------------------+
+//| PROP FIRM & CHALLENGE HIGH-WATERMARK DRAWDOWN GUARD              |
+//+------------------------------------------------------------------+
+void CheckPropFirmDailyWatermark()
+{
+   if(!InpUsePropFirmGuard) return;
+
+   datetime now = TimeCurrent();
+   datetime today_start = StringToTime(TimeToString(now, TIME_DATE) + " 00:00");
+   string gv_key = "APEX_DAY_START_" + IntegerToString(m_account.Login());
+
+   if(g_last_peak_day != today_start || g_daily_peak_equity <= 0)
+   {
+      g_last_peak_day = today_start;
+      g_daily_peak_equity = m_account.Balance();
+      if(GlobalVariableCheck(gv_key))
+      {
+         g_daily_peak_equity = GlobalVariableGet(gv_key);
+      }
+      else
+      {
+         GlobalVariableSet(gv_key, g_daily_peak_equity);
+      }
+      g_prop_firm_locked = false;
+   }
+
+   double cur_eq = m_account.Equity();
+   if(g_daily_peak_equity > 0 && !g_prop_firm_locked)
+   {
+      if(cur_eq < g_daily_peak_equity)
+      {
+         double dd_pct = (g_daily_peak_equity - cur_eq) / g_daily_peak_equity * 100.0;
+         if(dd_pct >= InpPropFirmMaxDailyDDPct)
+         {
+            g_prop_firm_locked = true;
+            ExecuteGlobalEmergencyKillSwitch();
+
+            string fields = "{\"name\": \"🏷️ Account ID\", \"value\": \"**`" + g_account_tag + "`**\", \"inline\": true}," +
+                            "{\"name\": \"🏆 Guard Mode\", \"value\": \"`PROP FIRM HIGH-WATERMARK DEFENSE`\", \"inline\": true}," +
+                            "{\"name\": \"📉 Max Trailing DD\", \"value\": \"`" + DoubleToString(dd_pct, 2) + "% (Batas " + DoubleToString(InpPropFirmMaxDailyDDPct, 1) + "%)`\", \"inline\": true}," +
+                            "{\"name\": \"🏦 Peak Equity Hari Ini\", \"value\": \"`$" + DoubleToString(g_daily_peak_equity, 2) + "`\", \"inline\": true}," +
+                            "{\"name\": \"💰 Equity Terkunci\", \"value\": \"`$" + DoubleToString(cur_eq, 2) + "`\", \"inline\": true}," +
+                            "{\"name\": \"🔒 Status Trading\", \"value\": \"`TUTUP SEMUA POSISI & KUNCI HINGGA BESOK`\", \"inline\": true}";
+
+            SendDiscordEmbed("[" + g_account_tag + "] 🏆 PROP FIRM HIGH-WATERMARK DRAWDOWN GUARD AKTIF!", 
+                             "Akun **[" + g_account_tag + "]** dilindungi dari batas Max Daily Drawdown. Semua posisi ditutup & modal aman 100%!", 
+                             0xE74C3C, fields, true);
+
+            if(InpEnableMobilePush)
+            {
+               SendNotification(StringFormat("[%s] 🏆 Prop Firm DD Guard Aktif! Modal Diamankan.", g_account_tag));
+            }
+         }
+      }
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -1508,7 +1520,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Lot Size Model\", \"value\": \"`" + (InpLotType == LOT_RISK_PERCENT ? "1.0% Equity Risk (" + DoubleToString(current_lot, 2) + " Lot)" : "Fixed/Step") + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v20.00 Anti-Rungkad)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v21.00 Anti-Rungkad)! 🚀", 
                     "Sistem M15 Single-Entry Sniper siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng kuantitatif mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -1660,12 +1672,27 @@ void ManageOpenPositions()
          {
             double profit_pts = (cur_bid - open_p) / point;
 
-            // 1. Stage 1: Lock Profit when Profit >= 1.5x SL Distance (+0.5R Lock)
+            // 1. Stage 1: Lock Profit & Partial Close 50% when Profit >= 1.5x SL Distance (+0.5R Lock)
             if(profit_pts >= 1.5 * initial_sl_dist_pts)
             {
                double lock_sl = m_symbol.NormalizePrice(open_p + (0.5 * initial_sl_dist_pts) * point);
                if(cur_sl < lock_sl && (cur_bid - lock_sl >= min_stop_dist))
                {
+                  double lot_step_sym = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
+                  double min_lot_sym  = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+                  if(lot_step_sym <= 0) lot_step_sym = 0.01;
+                  if(min_lot_sym <= 0) min_lot_sym = 0.01;
+
+                  if(volume >= min_lot_sym * 2.0)
+                  {
+                     double close_vol = MathFloor((volume * 0.5) / lot_step_sym) * lot_step_sym;
+                     if(close_vol >= min_lot_sym && close_vol < volume)
+                     {
+                        m_trade.SetExpertMagicNumber(InpMagicSniper);
+                        m_trade.PositionClosePartial(ticket, close_vol);
+                        Print("💰 [PARTIAL CLOSE 50%] Sniper BUY #", ticket, " amankan ", close_vol, " Lot cuan tunai ke saldo!");
+                     }
+                  }
                   m_trade.SetExpertMagicNumber(InpMagicSniper);
                   m_trade.PositionModify(ticket, lock_sl, cur_tp);
                   Print("🔒 [PROFIT LOCK +0.5R] Sniper BUY #", ticket, " surplus +", DoubleToString(profit_pts/10.0, 1), " pips! SL dikunci di +0.5R!");
@@ -1686,12 +1713,27 @@ void ManageOpenPositions()
          {
             double profit_pts = (open_p - cur_ask) / point;
 
-            // 1. Stage 1: Lock Profit when Profit >= 1.5x SL Distance (+0.5R Lock)
+            // 1. Stage 1: Lock Profit & Partial Close 50% when Profit >= 1.5x SL Distance (+0.5R Lock)
             if(profit_pts >= 1.5 * initial_sl_dist_pts)
             {
                double lock_sl = m_symbol.NormalizePrice(open_p - (0.5 * initial_sl_dist_pts) * point);
                if((cur_sl == 0 || cur_sl > lock_sl) && (lock_sl - cur_ask >= min_stop_dist))
                {
+                  double lot_step_sym = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
+                  double min_lot_sym  = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+                  if(lot_step_sym <= 0) lot_step_sym = 0.01;
+                  if(min_lot_sym <= 0) min_lot_sym = 0.01;
+
+                  if(volume >= min_lot_sym * 2.0)
+                  {
+                     double close_vol = MathFloor((volume * 0.5) / lot_step_sym) * lot_step_sym;
+                     if(close_vol >= min_lot_sym && close_vol < volume)
+                     {
+                        m_trade.SetExpertMagicNumber(InpMagicSniper);
+                        m_trade.PositionClosePartial(ticket, close_vol);
+                        Print("💰 [PARTIAL CLOSE 50%] Sniper SELL #", ticket, " amankan ", close_vol, " Lot cuan tunai ke saldo!");
+                     }
+                  }
                   m_trade.SetExpertMagicNumber(InpMagicSniper);
                   m_trade.PositionModify(ticket, lock_sl, cur_tp);
                   Print("🔒 [PROFIT LOCK +0.5R] Sniper SELL #", ticket, " surplus +", DoubleToString(profit_pts/10.0, 1), " pips! SL dikunci di +0.5R!");
@@ -1837,7 +1879,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v20.00)        |
+//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v21.00)        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
