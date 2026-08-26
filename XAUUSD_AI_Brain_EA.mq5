@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL v13.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
+//|  APEX SOVEREIGN CITADEL v14.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
 //|  (SMC FVG • Golden Pocket 50-61.8% • 1:2.5 RR • Anti-Rungkad)    |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "13.00"
-#property description "Unified Master Brain EA v13.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
+#property version   "14.00"
+#property description "Unified Master Brain EA v14.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -133,9 +133,20 @@ input int                 InpNewsBufferMin         = 15;                    // J
 input bool                InpUseFridayAutoClean    = true;                  // Bersihkan Posisi Scalp Jumat Malam (21:00 Server)
 input bool                InpUseRolloverGuard      = true;                  // Pelindung Jam Rollover Broker (23:50-01:10)
 
+
+input group "=== 8. INSTITUTIONAL KILL-ZONES TIME ENGINE ==="
+input bool                InpUseKillZonesOnly      = true;                  // Hanya Berburu di Jam Likuiditas Institusi (London & NY)
+input bool                InpTradeLondonKZ         = true;                  // Aktifkan London Open Kill-Zone (07:00 - 11:00 Server)
+input int                 InpLondonKZStartHour     = 7;                     // London KZ Start Hour (Server Time)
+input int                 InpLondonKZEndHour       = 11;                    // London KZ End Hour (Server Time)
+input bool                InpTradeNYKZ             = true;                  // Aktifkan New York Kill-Zone (13:00 - 17:00 Server)
+input int                 InpNYKZStartHour         = 13;                    // NY KZ Start Hour (Server Time)
+input int                 InpNYKZEndHour           = 17;                    // NY KZ End Hour (Server Time)
+input bool                InpTradeAsianSession     = false;                 // Izinkan Trading di Sesi Asia (False = Standby Hindari Chop)
+
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "13.00";
-string                    g_last_self_updated_ver  = "13.00";
+string                    g_current_version        = "14.00";
+string                    g_last_self_updated_ver  = "14.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_max_spread             = 70;
@@ -780,6 +791,43 @@ void CalculateH4FibonacciLevels(SFibLevels &out_fib, int lookback_bars=24)
 }
 
 //+------------------------------------------------------------------+
+//| DETEKSI INSTITUTIONAL KILL-ZONES TIME WINDOW                     |
+//+------------------------------------------------------------------+
+bool IsInsideInstitutionalKillZone(string &out_session_name)
+{
+   if(!InpUseKillZonesOnly)
+   {
+      out_session_name = "ALL SESSIONS (24H ACTIVE)";
+      return true;
+   }
+
+   MqlDateTime dt;
+   TimeToStruct(TimeCurrent(), dt);
+   int hour = dt.hour;
+
+   if(InpTradeLondonKZ && hour >= InpLondonKZStartHour && hour <= InpLondonKZEndHour)
+   {
+      out_session_name = "LONDON KILL-ZONE 🏛️ (07-11 Server)";
+      return true;
+   }
+
+   if(InpTradeNYKZ && hour >= InpNYKZStartHour && hour <= InpNYKZEndHour)
+   {
+      out_session_name = "NEW YORK KILL-ZONE ⚡ (13-17 Server)";
+      return true;
+   }
+
+   if(InpTradeAsianSession && (hour >= 0 && hour < InpLondonKZStartHour))
+   {
+      out_session_name = "ASIAN SESSION 🌏 (Low Volatility)";
+      return true;
+   }
+
+   out_session_name = "STANDBY (OUTSIDE KILL-ZONES ⏳)";
+   return false;
+}
+
+//+------------------------------------------------------------------+
 //| DETEKSI INSTITUTIONAL FAIR VALUE GAP (FVG M15)                   |
 //+------------------------------------------------------------------+
 void DetectM15FairValueGap(SFairValueGap &out_fvg)
@@ -1210,7 +1258,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Lot Size Model\", \"value\": \"`" + (InpLotType == LOT_RISK_PERCENT ? "1.0% Equity Risk (" + DoubleToString(current_lot, 2) + " Lot)" : "Fixed/Step") + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v13.00 Anti-Rungkad)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v14.00 Anti-Rungkad)! 🚀", 
                     "Sistem M15 Single-Entry Sniper siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng kuantitatif mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -1283,7 +1331,7 @@ void OnTimer()
 //+------------------------------------------------------------------+
 //| ON-CHART DASHBOARD M15 SNIPER MASTER                             |
 //+------------------------------------------------------------------+
-void DisplayAIDashboard(string sniper_status, string swing_status, int dyn_sl, int dyn_tp, int sniper_total, int swing_total, string macro_bias, SFibLevels &fib)
+void DisplayAIDashboard(string sniper_status, string swing_status, int dyn_sl, int dyn_tp, int sniper_total, int swing_total, string macro_bias, SFibLevels &fib, string kz_status)
 {
    long current_spread = m_symbol.Spread();
    string spread_status = (current_spread <= g_max_spread) ? "[AMAN ✅]" : "[TERLALU TINGGI 🚫]";
@@ -1309,6 +1357,7 @@ void DisplayAIDashboard(string sniper_status, string swing_status, int dyn_sl, i
    info += " 🏆 Profit Hari Ini  : " + ((daily_pl >= 0) ? "+$" : "-$") + DoubleToString(MathAbs(daily_pl), 2) + " (Tab History MT5)\n";
    info += " 🌊 Macro H4/H1 Bias : " + macro_bias + "\n";
    info += " 📐 Golden Fib M15   : 50.0% (" + DoubleToString(fib.fib_500, 2) + ") - 61.8% (" + DoubleToString(fib.fib_618, 2) + ")\n";
+   info += " ⏰ Institutional KZ : " + kz_status + "\n";
    info += "---------------------------------------------------------\n";
    info += " [🎯 ENGINE 1: M15 INSTITUTIONAL SINGLE-ENTRY SNIPER]\n";
    info += "  🎯 Posisi Sniper    : " + IntegerToString(sniper_total) + "/1 Posisi (Risk: 1.0% = " + DoubleToString(lot, 2) + " Lot)\n";
@@ -1535,7 +1584,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v13.00)        |
+//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v14.00)        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
@@ -1659,6 +1708,10 @@ void OnTick()
    bool macro_bearish = (rates_m15[1].close < ema50_h1) && (ema50_h4 < ema200_h4);
    string macro_bias_str = macro_bullish ? "BULLISH DOMINANCE 🟢" : macro_bearish ? "BEARISH DOMINANCE 🔴" : "NETRAL ⚪";
 
+   // 10.5 DETEKSI STATUS INSTITUTIONAL KILL-ZONE
+   string current_kz_name = "";
+   bool is_in_killzone = IsInsideInstitutionalKillZone(current_kz_name);
+
    // 11. ANATOMI REJECTION CANDLE M15 (BAR 1 CONFIRMED CLOSE)
    double bar1_open  = rates_m15[1].open;
    double bar1_high  = rates_m15[1].high;
@@ -1772,7 +1825,7 @@ void OnTick()
 
    string swing_status  = (swing_total > 0) ? "🌊 RUNNING SWING (Aktif)" : "STANDBY MONITORING H4...";
 
-   DisplayAIDashboard(sniper_status, swing_status, (int)dyn_sl_pts, (int)dyn_tp_pts, sniper_total, swing_total, macro_bias_str, fib_m15);
+   DisplayAIDashboard(sniper_status, swing_status, (int)dyn_sl_pts, (int)dyn_tp_pts, sniper_total, swing_total, macro_bias_str, fib_m15, current_kz_name);
 
    // 15. Proteksi Filter Umum
    if(g_emergency_kill_active || g_prop_firm_locked || g_manual_trade_pause) return;
@@ -1783,7 +1836,7 @@ void OnTick()
    if(TimeCurrent() < g_cooldown_until) return;
 
    // 16. EKSEKUSI MESIN 1: M15 SNIPER (SINGLE SNIPER ENTRY)
-   if(InpEnableM15Sniper && sniper_total == 0)
+   if(InpEnableM15Sniper && sniper_total == 0 && is_in_killzone)
    {
       if(sniper_buy_sig)
       {
