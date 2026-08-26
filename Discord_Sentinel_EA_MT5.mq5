@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
 //|  AI-Powered Dual-Regime M1/M15 Neural Scalper for Gold (XAUUSD)  |
-//|  (Institutional Confluence • Anti-FOMO Pullback • Smart Layer)   |
+//|  (Institutional Confluence • Version Tagged Webhooks • Max 7)   |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "3.50"
-#property description "EA Scalping M1 Gold (XAUUSD) AI Deep Neural Network dengan Filter Tren Makro M15, Anti-FOMO Pullback, & Smart Layering Spacing"
+#property version   "3.55"
+#property description "EA Scalping M1 Gold (XAUUSD) AI Deep Neural Network dengan Versi Brain di Setiap Laporan Discord Webhook"
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -104,7 +104,7 @@ input int                 InpBB_Period_M1          = 20;                    // M
 input double              InpBB_Dev_M1             = 2.0;                   // M1 BB Deviation
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "3.50";
+string                    g_current_version        = "3.55";
 double                    g_confidence_thresh      = 0.60;
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
@@ -208,7 +208,7 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
                     "\"description\": \"" + description + "\"," +
                     "\"color\": " + IntegerToString(color_hex) + "," +
                     "\"fields\": [" + fields_json + "]," +
-                    "\"footer\": {\"text\": \"XAUUSD AI-Brain Sentinel MT5 • " + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
+                    "\"footer\": {\"text\": \"XAUUSD AI-Brain Sentinel MT5 v" + g_current_version + " • " + TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
                     "}]}";
 
    char post_data[];
@@ -265,14 +265,14 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
             double target_usd = cur_bal * (g_daily_target_pct / 100.0);
             double loss_usd = cur_bal * (g_daily_max_loss_pct / 100.0);
 
-            string update_fields = "{\"name\": \"🧠 Versi AI Engine\", \"value\": \"`v" + g_current_version + " (Institusional)`\", \"inline\": true}," +
+            string update_fields = "{\"name\": \"🧠 Versi AI-Brain\", \"value\": \"`v" + g_current_version + " (Institusional Tagged)`\", \"inline\": true}," +
                                    "{\"name\": \"🎯 Target Harian (15%)\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (" + DoubleToString(g_daily_target_pct, 0) + "% Wallet)`\", \"inline\": true}," +
                                    "{\"name\": \"🛡️ Max Loss Harian (7%)\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (" + DoubleToString(g_daily_max_loss_pct, 0) + "% Wallet)`\", \"inline\": true}," +
                                    "{\"name\": \"⚡ Smart Layering\", \"value\": \"`Max " + IntegerToString(g_max_open_pos) + " Posisi (Min " + IntegerToString(g_min_layer_dist / 10) + " Pips)`\", \"inline\": true}," +
                                    "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot`\", \"inline\": true}";
             
             SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (AI-BRAIN v" + g_current_version + ")!", 
-                             "Logika Institusional: Filter Tren Makro M15 & Anti-FOMO Pullback berhasil disinkronkan!", 
+                             "Pembaruan versi brain berhasil disinkronkan ke seluruh sistem notifikasi webhook!", 
                              0x9B59B6, update_fields, false);
          }
       }
@@ -346,7 +346,7 @@ double CalculateLotSize(double sl_points)
 }
 
 //+------------------------------------------------------------------+
-//| FORMAT NOTIFIKASI OPEN TRADE DISCORD                             |
+//| FORMAT NOTIFIKASI OPEN TRADE DISCORD (DENGAN VERSI BRAIN)        |
 //+------------------------------------------------------------------+
 void NotifyAITrade(string type, double price, double lot_used, double sl, double tp, ulong ticket, float confidence, int spread_used, int current_layers, string setup_reason)
 {
@@ -354,7 +354,8 @@ void NotifyAITrade(string type, double price, double lot_used, double sl, double
    string emoji = (type == "BUY") ? "🟢" : "🔴";
 
    string fields = "{\"name\": \"🏷️ Tipe Order AI\", \"value\": \"" + emoji + " **" + type + " (Layer " + IntegerToString(current_layers) + "/" + IntegerToString(g_max_open_pos) + ")**\", \"inline\": true}," +
-                   "{\"name\": \"🧠 AI Confidence\", \"value\": \"**" + DoubleToString(confidence * 100.0f, 1) + "%** 🔥\", \"inline\": true}," +
+                   "{\"name\": \"🧠 Versi AI-Brain\", \"value\": \"`v" + g_current_version + " (Institusional)` 🔥\", \"inline\": true}," +
+                   "{\"name\": \"🎯 AI Confidence\", \"value\": \"**" + DoubleToString(confidence * 100.0f, 1) + "%**\", \"inline\": true}," +
                    "{\"name\": \"🎯 Setup Alasan\", \"value\": \"`" + setup_reason + "`\", \"inline\": true}," +
                    "{\"name\": \"📊 Simbol & Lot\", \"value\": \"`" + _Symbol + "` (**" + DoubleToString(lot_used, 2) + " Lot**)\", \"inline\": true}," +
                    "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(price, _Digits) + "`\", \"inline\": true}," +
@@ -371,7 +372,7 @@ void NotifyAITrade(string type, double price, double lot_used, double sl, double
 }
 
 //+------------------------------------------------------------------+
-//| FORMAT NOTIFIKASI CLOSE TRADE DISCORD (+/- PnL & SALDO TERKINI)  |
+//| FORMAT NOTIFIKASI CLOSE TRADE DISCORD (DENGAN VERSI BRAIN)       |
 //+------------------------------------------------------------------+
 void NotifyCloseTrade(string type, double close_price, double profit, ulong deal_ticket, double volume)
 {
@@ -391,6 +392,7 @@ void NotifyCloseTrade(string type, double close_price, double profit, ulong deal
    double daily_total_pl = GetDailyProfitLoss();
 
    string fields = "{\"name\": \"📊 Hasil Transaksi\", \"value\": \"" + result_emoji + "\", \"inline\": true}," +
+                   "{\"name\": \"🧠 Versi AI-Brain\", \"value\": \"`v" + g_current_version + " (Institusional)`\", \"inline\": true}," +
                    "{\"name\": \"💵 Realized PnL\", \"value\": \"**" + pnl_sign + DoubleToString(abs_profit, 2) + "**\", \"inline\": true}," +
                    "{\"name\": \"🏦 Saldo Akun Terkini\", \"value\": \"**`$" + DoubleToString(current_balance, 2) + "`**\", \"inline\": true}," +
                    "{\"name\": \"🏷️ Posisi Ditutup\", \"value\": \"`" + type + " " + _Symbol + " (" + DoubleToString(volume, 2) + " Lot)`\", \"inline\": true}," +
@@ -589,15 +591,15 @@ int OnInit()
    double loss_usd = current_bal * (g_daily_max_loss_pct / 100.0);
    double current_lot = CalculateLotSize(g_sl_points);
 
-   string startup_fields = "{\"name\": \"🧠 AI Neural Engine\", \"value\": \"`Deep MLP Institusional (v3.50)`\", \"inline\": true}," +
+   string startup_fields = "{\"name\": \"🧠 Versi AI-Brain\", \"value\": \"`v" + g_current_version + " (Institusional Tagged)`\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target Cuan Harian\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (15% Wallet)`\", \"inline\": true}," +
                            "{\"name\": \"🛡️ Max Loss Harian\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (7% Wallet)`\", \"inline\": true}," +
                            "{\"name\": \"⚡ Smart Layering\", \"value\": \"`Max " + IntegerToString(g_max_open_pos) + " Entry (Min " + IntegerToString(g_min_layer_dist / 10) + " Pips)`\", \"inline\": true}," +
                            "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Lot: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target SL / TP\", \"value\": \"`SL: " + IntegerToString(g_sl_points / 10) + " Pips | TP: " + IntegerToString(g_tp_points / 10) + " Pips`\", \"inline\": true}";
 
-   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif (v3.50 Institusional)!", 
-                    "Logika Disempurnakan: Filter Tren Makro M15, Anti-FOMO Pullback, & Smart Grid Layering aktif melindungi akun.", 
+   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif (v" + g_current_version + " Institusional)!", 
+                    "Expert Advisor siap berburu scalping lengkap dengan identitas versi AI-Brain pada setiap laporan webhook.", 
                     0x3498DB, startup_fields, false);
 
    return INIT_SUCCEEDED;
@@ -922,7 +924,6 @@ bool IsLayerDistanceValid(ENUM_ORDER_TYPE order_type, double entry_price)
             double pos_price = m_position.PriceOpen();
             double dist_pts  = MathAbs(entry_price - pos_price) / point;
 
-            // Jika jarak ke posisi terdekat kurang dari ambang batas, tolak layering tumpuk
             if(dist_pts < g_min_layer_dist) return false;
          }
       }
@@ -1056,9 +1057,8 @@ void OnTick()
    // 12. EKSEKUSI INSTITUSIONAL SNIPER: KONFLUENSI TREN MAKRO M15 + ANTI-FOMO PULLBACK + AI CONF >= 60%
    if(prob_buy >= (float)g_confidence_thresh && prob_buy > prob_sell)
    {
-      // Validasi Konfluensi BUY
-      if(InpUseTrendFilterM15 && !is_m15_bullish) return; // Dilarang BUY jika tren M15 bukan Bullish
-      if(InpUseAntiFOMOPullback && raw_rsi_m1 > InpMaxRSI_Buy_M1) return; // Dilarang BUY saat Overbought
+      if(InpUseTrendFilterM15 && !is_m15_bullish) return;
+      if(InpUseAntiFOMOPullback && raw_rsi_m1 > InpMaxRSI_Buy_M1) return;
 
       string reason = "M15 Bullish + M1 Pullback Diskon (RSI " + DoubleToString(raw_rsi_m1, 1) + ")";
       OpenAIOrder(ORDER_TYPE_BUY, prob_buy, active_orders, reason);
@@ -1066,9 +1066,8 @@ void OnTick()
    }
    else if(prob_sell >= (float)g_confidence_thresh && prob_sell > prob_buy)
    {
-      // Validasi Konfluensi SELL
-      if(InpUseTrendFilterM15 && !is_m15_bearish) return; // Dilarang SELL jika tren M15 bukan Bearish
-      if(InpUseAntiFOMOPullback && raw_rsi_m1 < InpMinRSI_Sell_M1) return; // Dilarang SELL saat Oversold
+      if(InpUseTrendFilterM15 && !is_m15_bearish) return;
+      if(InpUseAntiFOMOPullback && raw_rsi_m1 < InpMinRSI_Sell_M1) return;
 
       string reason = "M15 Bearish + M1 Rally Diskon (RSI " + DoubleToString(raw_rsi_m1, 1) + ")";
       OpenAIOrder(ORDER_TYPE_SELL, prob_sell, active_orders, reason);
