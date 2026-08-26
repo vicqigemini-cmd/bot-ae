@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL v24.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
+//|  APEX SOVEREIGN CITADEL v25.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
 //|  (SMC FVG • Golden Pocket 50-61.8% • 1:2.5 RR • Anti-Rungkad)    |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "24.00"
-#property description "Unified Master Brain EA v24.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
+#property version   "25.00"
+#property description "Unified Master Brain EA v25.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -158,8 +158,8 @@ input double              InpMaxPortfolioRiskPct   = 2.0;                   // B
 input int                 InpMaxTotalOpenTradesAll = 3;                     // Batas Maksimal Total Posisi Terbuka Seluruh Portofolio
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "24.00";
-string                    g_last_self_updated_ver  = "24.00";
+string                    g_current_version        = "25.00";
+string                    g_last_self_updated_ver  = "25.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_max_spread             = 70;
@@ -999,29 +999,30 @@ bool IsInsideInstitutionalKillZone(string &out_session_name)
       return true;
    }
 
-   datetime gmt_time = TimeGMT();
    MqlDateTime dt;
-   TimeToStruct(gmt_time, dt);
-   int gmt_hour = dt.hour;
-   int gmt_min  = dt.min;
-   double gmt_dec = gmt_hour + (gmt_min / 60.0);
+   datetime t_now = TimeCurrent();
+   TimeToStruct(t_now, dt);
+   int hour = dt.hour;
+   int min  = dt.min;
+   double dec_time = hour + (min / 60.0);
 
-   // London Open Kill-Zone: 07:00 - 11:00 UTC (14:00 - 18:00 WIB)
-   if(InpTradeLondonKZ && (gmt_dec >= 7.0 && gmt_dec <= 11.0))
+   // Dalam Strategy Tester atau broker GMT+2/3 standar (London 09-14 Server, NY 14-19 Server)
+   // London Open Kill-Zone: 08:00 - 13:00 Server Time
+   if(InpTradeLondonKZ && (dec_time >= 8.0 && dec_time <= 13.0))
    {
-      out_session_name = "LONDON KILL-ZONE 🏛️ (07:00-11:00 UTC)";
+      out_session_name = "LONDON KILL-ZONE 🏛️ (08:00-13:00 Server)";
       return true;
    }
 
-   // New York Open Kill-Zone: 12:30 - 16:30 UTC (19:30 - 23:30 WIB)
-   if(InpTradeNYKZ && (gmt_dec >= 12.5 && gmt_dec <= 16.5))
+   // New York Open Kill-Zone: 13.5 - 19:00 Server Time
+   if(InpTradeNYKZ && (dec_time >= 13.5 && dec_time <= 19.0))
    {
-      out_session_name = "NEW YORK KILL-ZONE ⚡ (12:30-16:30 UTC)";
+      out_session_name = "NEW YORK KILL-ZONE ⚡ (13:30-19:00 Server)";
       return true;
    }
 
-   // Asian Session: 00:00 - 06:30 UTC (07:00 - 13:30 WIB)
-   if(InpTradeAsianSession && (gmt_dec >= 0.0 && gmt_dec < 7.0))
+   // Asian Session: 00:00 - 08:00 Server Time
+   if(InpTradeAsianSession && (dec_time >= 0.0 && dec_time < 8.0))
    {
       out_session_name = "ASIAN SESSION 🌏 (Low Volatility)";
       return true;
@@ -1128,11 +1129,7 @@ void CheckPropFirmDailyWatermark()
    {
       g_last_peak_day = today_start;
       g_daily_peak_equity = m_account.Balance();
-      if(GlobalVariableCheck(gv_key))
-      {
-         g_daily_peak_equity = GlobalVariableGet(gv_key);
-      }
-      else
+      if(!MQLInfoInteger(MQL_TESTER))
       {
          GlobalVariableSet(gv_key, g_daily_peak_equity);
       }
@@ -1558,7 +1555,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Lot Size Model\", \"value\": \"`" + (InpLotType == LOT_RISK_PERCENT ? "1.0% Equity Risk (" + DoubleToString(current_lot, 2) + " Lot)" : "Fixed/Step") + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v24.00 Anti-Rungkad)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v25.00 Anti-Rungkad)! 🚀", 
                     "Sistem M15 Single-Entry Sniper siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng kuantitatif mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -1941,7 +1938,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v24.00)        |
+//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v25.00)        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
