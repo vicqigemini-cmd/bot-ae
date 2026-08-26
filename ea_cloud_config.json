@@ -1,0 +1,19 @@
+{
+  "version": "2.20",
+  "auto_lot": true,
+  "balance_per_step": 100.0,
+  "lot_per_step": 0.01,
+  "stop_loss_pips": 15,
+  "take_profit_pips": 30,
+  "use_trailing_stop": true,
+  "trailing_start_pips": 10,
+  "trailing_step_pips": 5,
+  "m15_fast_ema": 20,
+  "m15_slow_ema": 50,
+  "m1_fast_ema": 9,
+  "m1_slow_ema": 21,
+  "rsi_period": 14,
+  "rsi_overbought": 75.0,
+  "rsi_oversold": 25.0,
+  "status_message": "OTA Cloud Engine Aktif - Scalper Multi-Timeframe M15/M1 dengan Auto-Lot $100 = 0.01 Lot."
+}
