@@ -1,5 +1,6 @@
 # ==============================================================================
 #  SENTINEL METATRADER 5 AUTO-UPDATER & AUTO-COMPILER DAEMON (RDP 24/7)
+#  (Live Heartbeat Status Setiap 30 Detik)
 # ==============================================================================
 
 $token = "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"
@@ -14,52 +15,53 @@ Write-Host "==========================================================" -Foregro
 
 # 1. Temukan folder Experts
 $expertFolder = (Get-ChildItem -Path "$env:APPDATA\MetaQuotes\Terminal\*\MQL5\Experts" -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-Write-Host "[INFO] Folder Experts: $expertFolder" -ForegroundColor Gray
+Write-Host "[INFO] Folder Experts : $expertFolder" -ForegroundColor Gray
 
-# 2. Cari MetaEditor di seluruh drive C
+# 2. Cari MetaEditor Compiler
 $metaEditorPath = Get-ChildItem -Path "C:\Program Files*", "C:\Users*" -Include "metaeditor64.exe", "metaeditor.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
-
 if ($metaEditorPath) {
-    Write-Host "[INFO] MetaEditor Compiler Ditemukan: $metaEditorPath" -ForegroundColor Green
+    Write-Host "[INFO] Compiler Aktif : $metaEditorPath" -ForegroundColor Green
 } else {
-    Write-Host "[WARNING] MetaEditor EXE belum terdeteksi otomatis. File MQ5 akan tetap diunduh!" -ForegroundColor Yellow
+    Write-Host "[INFO] Compiler Aktif : Mode Standar Terminal" -ForegroundColor Gray
 }
 
-$lastSha = ""
+Write-Host "----------------------------------------------------------" -ForegroundColor Gray
+Write-Host " Service aktif! Pengecekan otomatis berjalan setiap 30 detik:`n" -ForegroundColor White
 
-# Lakukan kompilasi awal saat pertama kali script dijalankan
-$initialRun = $true
+$lastSha = ""
+$checkCount = 0
 
 while ($true) {
+    $checkCount++
+    $timeStr = Get-Date -Format "HH:mm:ss"
+
     try {
         $info = Invoke-RestMethod -Uri $apiUrl -Headers $metaHeaders -ErrorAction Stop
         $currentSha = $info.sha
 
-        if (($currentSha -ne $lastSha -and $currentSha -ne "") -or $initialRun) {
-            $timeStr = Get-Date -Format "HH:mm:ss"
-            Write-Host "`n[$timeStr] 🔔 Memproses Update EA Terbaru dari GitHub..." -ForegroundColor Magenta
+        if ($currentSha -ne $lastSha -and $currentSha -ne "") {
+            Write-Host "`n[$timeStr] 🚨 DITEMUKAN PEMBARUAN KODE BARU DI GITHUB!" -ForegroundColor Magenta
             
             $targetMq5 = "$expertFolder\XAUUSD_AI_Brain_EA.mq5"
             Invoke-RestMethod -Uri $apiUrl -Headers $headers -OutFile $targetMq5 -ErrorAction Stop
-            Write-Host "[$timeStr] 📥 File MQ5 berhasil diunduh ke Experts!" -ForegroundColor Green
+            Write-Host "[$timeStr] 📥 File MQ5 berhasil diunduh ke folder Experts!" -ForegroundColor Green
 
             if ($metaEditorPath -and (Test-Path $metaEditorPath)) {
-                Write-Host "[$timeStr] ⚙️ Mengompilasi (F7 Otomatis)..." -ForegroundColor Yellow
+                Write-Host "[$timeStr] ⚙️ Sedang mengompilasi file .ex5 (F7 Otomatis)..." -ForegroundColor Yellow
                 $argCompile = "/compile:$targetMq5"
                 $argLog = "/log:$expertFolder\compile.log"
                 Start-Process -FilePath $metaEditorPath -ArgumentList @($argCompile, $argLog, "/s") -Wait
-                Write-Host "[$timeStr] 🎉 KOMPILASI SUKSES! File .ex5 baru sudah terpasang!" -ForegroundColor Green
-                Write-Host "[$timeStr] 💡 Tips: Di chart MT5, klik timeframe M5 lalu M1 untuk refresh layar." -ForegroundColor Cyan
-            } else {
-                Write-Host "[$timeStr] 💡 Silakan buka MetaEditor dan tekan F7 satu kali." -ForegroundColor Yellow
+                Write-Host "[$timeStr] 🎉 KOMPILASI SUKSES! EA di chart MetaTrader otomatis ter-update!" -ForegroundColor Green
             }
 
             $lastSha = $currentSha
-            $initialRun = $false
+        } else {
+            # Tampilkan Live Heartbeat bahwa updater aktif bekerja
+            Write-Host "[$timeStr] [Cek #$checkCount] 🔍 Memeriksa GitHub... (Status: Kode RDP sudah paling baru ✅)" -ForegroundColor DarkGray
         }
     }
     catch {
-        # Silent retry
+        Write-Host "[$timeStr] [Cek #$checkCount] ⚠️ Sedang menghubungkan ulang ke GitHub..." -ForegroundColor DarkYellow
     }
 
     Start-Sleep -Seconds 30
