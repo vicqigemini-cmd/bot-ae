@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
 //|                                     Discord_Sentinel_EA_MT4.mq4  |
-//|                        IDX Sentinel & Algorithmic Trading EA     |
+//|             Multi-Timeframe Scalper EA (Bias M15 • Entry M1)     |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "1.00"
+#property version   "2.00"
 #property strict
 
 //+------------------------------------------------------------------+
@@ -15,28 +15,33 @@ input string   s0 = "=== PENGATURAN DISCORD WEBHOOK ==="; // ---
 input string   InpDiscordWebhookURL = "https://discord.com/api/webhooks/1542059423999197184/KMcjEnHpAkMwoW8cwbQKdxnYYl4E0q2ENkRy-ICu0ssk_w6y3Eyihy5vNGHKkw1Ys61C"; // Webhook URL Pribadi
 input bool     InpEnableDiscord     = true;                                                                                                                            // Aktifkan Notifikasi Discord
 input string   InpDiscordMention    = "";                                                                                                                              // Tag Mention (Kosongkan untuk channel pribadi)
-input string   InpBotName           = "EA Private Sentinel MT4";                                                                                                       // Nama Bot
+input string   InpBotName           = "EA Scalper Sentinel MT4";                                                                                                       // Nama Bot
 
-input string   s1 = "=== PENGATURAN TRADING ==="; // ---
-input double   InpLotSize           = 0.01;      // Lot Size
-input int      InpStopLossPips      = 30;        // Stop Loss (Pips)
-input int      InpTakeProfitPips    = 60;        // Take Profit (Pips)
-input int      InpMagicNumber       = 778899;    // Magic Number
-input int      InpSlippage          = 10;        // Slippage
+input string   s1 = "=== PENGATURAN SCALPING & LOT ==="; // ---
+input double   InpLotSize           = 0.01;      // Ukuran Lot Scalping
+input int      InpStopLossPips      = 15;        // Stop Loss Scalping (Pips)
+input int      InpTakeProfitPips    = 30;        // Take Profit Scalping (Pips)
+input int      InpMagicNumber       = 778899;    // Magic Number EA
+input int      InpSlippage          = 10;        // Maksimum Slippage (Points)
 
-input string   s2 = "=== PENGATURAN INDIKATOR ==="; // ---
-input int      InpFastEMA           = 20;        // Fast EMA Period
-input int      InpSlowEMA           = 50;        // Slow EMA Period
-input int      InpRSIPeriod         = 14;        // RSI Period
-input double   InpRSIOverbought     = 70.0;      // RSI Overbought
-input double   InpRSIOversold       = 30.0;      // RSI Oversold
+input string   s2 = "=== BIAS TREN BESAR (TIMEFRAME M15) ==="; // ---
+input int      InpM15FastEMA        = 20;        // M15 Fast EMA Period
+input int      InpM15SlowEMA        = 50;        // M15 Slow EMA Period
 
-input string   s3 = "=== TRAILING STOP ==="; // ---
-input bool     InpUseTrailingStop   = true;      // Gunakan Trailing Stop
-input int      InpTrailingStartPips = 20;        // Trailing Start (Pips)
-input int      InpTrailingStepPips  = 10;        // Trailing Step (Pips)
+input string   s3 = "=== TRIGGER ENTRY PRESISI (TIMEFRAME M1) ==="; // ---
+input int      InpM1FastEMA         = 9;         // M1 Fast EMA Period (Scalp Trigger)
+input int      InpM1SlowEMA         = 21;        // M1 Slow EMA Period (Scalp Baseline)
+input int      InpM1RSIPeriod       = 14;        // M1 RSI Period
+input double   InpRSIOverbought     = 75.0;      // M1 RSI Overbought Level
+input double   InpRSIOversold       = 25.0;      // M1 RSI Oversold Level
 
-datetime m_last_bar_time;
+input string   s4 = "=== SCALPING TRAILING STOP ==="; // ---
+input bool     InpUseTrailingStop   = true;      // Gunakan Trailing Stop Cepat
+input int      InpTrailingStartPips = 10;        // Trailing Dimulai Setelah Profit (Pips)
+input int      InpTrailingStepPips  = 5;         // Jarak Trailing Step (Pips)
+
+//--- Global Variables
+datetime       m_last_bar_time;
 
 //+------------------------------------------------------------------+
 //| FUNGSI PENGIRIM DISCORD WEBHOOK MT4                              |
@@ -48,7 +53,7 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
    string content_header = "";
    if(is_critical && InpDiscordMention != "")
    {
-      content_header = "\"content\": \"🚨 " + InpDiscordMention + " — **[TRADING ALERT]**\", ";
+      content_header = "\"content\": \"🚨 " + InpDiscordMention + " — **[SCALPING ALERT]**\", ";
    }
 
    string payload = "{" + content_header +
@@ -58,7 +63,7 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
                     "\"description\": \"" + description + "\"," +
                     "\"color\": " + IntegerToString(color_hex) + "," +
                     "\"fields\": [" + fields_json + "]," +
-                    "\"footer\": {\"text\": \"EA Sentinel MT4 • " + TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
+                    "\"footer\": {\"text\": \"EA Scalper Sentinel MT4 • " + TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"}" +
                     "}]}";
 
    char post_data[];
@@ -71,16 +76,32 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
 
    ResetLastError();
    int res = WebRequest("POST", InpDiscordWebhookURL, headers, 5000, post_data, result_data, result_headers);
-   
    if(res == -1)
    {
-      int err = GetLastError();
-      Print("❌ Gagal kirim Webhook Discord. Error: ", err);
-      if(err == 4060)
-      {
-         Print("⚠️ Izinkan WebRequest di MT4: Tools -> Options -> Expert Advisors -> Tambahkan: https://discord.com");
-      }
+      Print("❌ Gagal kirim Webhook Discord. Error: ", GetLastError());
    }
+}
+
+//+------------------------------------------------------------------+
+//| FORMAT NOTIFIKASI ORDER DISCORD                                  |
+//+------------------------------------------------------------------+
+void NotifyOpenTrade(string type, double price, double sl, double tp, int ticket, string bias_text)
+{
+   int embed_color = (type == "BUY") ? 0x2ECC71 : 0xE74C3C;
+   string emoji = (type == "BUY") ? "🟢" : "🔴";
+
+   string fields = "{\"name\": \"🏷️ Tipe Order\", \"value\": \"" + emoji + " **" + type + " (Scalp M1)**\", \"inline\": true}," +
+                   "{\"name\": \"🧭 Bias Tren M15\", \"value\": \"`" + bias_text + "`\", \"inline\": true}," +
+                   "{\"name\": \"📊 Simbol & Lot\", \"value\": \"`" + Symbol() + "` (" + DoubleToStr(InpLotSize, 2) + " Lot)\", \"inline\": true}," +
+                   "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToStr(price, Digits) + "`\", \"inline\": true}," +
+                   "{\"name\": \"🛡️ Stop Loss\", \"value\": \"`" + DoubleToStr(sl, Digits) + "` (-" + IntegerToString(InpStopLossPips) + " Pips)\", \"inline\": true}," +
+                   "{\"name\": \"🎯 Take Profit\", \"value\": \"`" + DoubleToStr(tp, Digits) + "` (+" + IntegerToString(InpTakeProfitPips) + " Pips)\", \"inline\": true}," +
+                   "{\"name\": \"🎫 Ticket ID\", \"value\": \"`#" + IntegerToString(ticket) + "`\", \"inline\": true}";
+
+   SendDiscordEmbed("⚡ EKSEKUSI SCALPING BARU (" + type + ")", 
+                    "Order scalping dieksekusi berdasarkan keselarasan Bias M15 dan Crossover Momentum M1.", 
+                    embed_color, 
+                    fields, false);
 }
 
 //+------------------------------------------------------------------+
@@ -88,28 +109,27 @@ void SendDiscordEmbed(string title, string description, int color_hex, string fi
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   string startup_fields = "{\"name\": \"💻 Pair & Timeframe\", \"value\": \"`" + Symbol() + " (" + IntegerToString(Period()) + ")`\", \"inline\": true}," +
-                           "{\"name\": \"💰 Balance / Equity\", \"value\": \"`$" + DoubleToString(AccountBalance(), 2) + " / $" + DoubleToString(AccountEquity(), 2) + "`\", \"inline\": true}," +
-                           "{\"name\": \"⚙️ Magic Number\", \"value\": \"`" + IntegerToString(InpMagicNumber) + "`\", \"inline\": true}";
+   string startup_fields = "{\"name\": \"🧭 Strategi Multi-Timeframe\", \"value\": \"`Bias: M15 | Entry: M1`\", \"inline\": true}," +
+                           "{\"name\": \"🎯 Target Scalping\", \"value\": \"`SL: " + IntegerToString(InpStopLossPips) + " Pips | TP: " + IntegerToString(InpTakeProfitPips) + " Pips`\", \"inline\": true}," +
+                           "{\"name\": \"💰 Balance / Equity\", \"value\": \"`$" + DoubleToStr(AccountBalance(), 2) + " / $" + DoubleToStr(AccountEquity(), 2) + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("🤖 EA IDX Sentinel MT4 Berhasil Aktif!", 
-                    "Expert Advisor telah online dan siap memantau pasar.", 
+   SendDiscordEmbed("🤖 EA Scalper Sentinel MT4 Berhasil Aktif!", 
+                    "Expert Advisor siap mengeksekusi Scalping di Timeframe M1 dengan konfirmasi arah tren Timeframe M15.", 
                     0x3498DB, startup_fields, false);
-   return INIT_SUCCEEDED;
+
+   return(INIT_SUCCEEDED);
 }
 
 //+------------------------------------------------------------------+
-//| TRAILING STOP                                                    |
+//| FUNGSI TRAILING STOP                                             |
 //+------------------------------------------------------------------+
 void ApplyTrailingStop()
 {
    if(!InpUseTrailingStop) return;
 
    double point = Point;
-   if(Digits == 3 || Digits == 5) point *= 10;
-
-   double trailing_start = InpTrailingStartPips * point;
-   double trailing_step  = InpTrailingStepPips * point;
+   double trailing_start = InpTrailingStartPips * 10 * point;
+   double trailing_step  = InpTrailingStepPips * 10 * point;
 
    for(int i = OrdersTotal() - 1; i >= 0; i--)
    {
@@ -124,7 +144,7 @@ void ApplyTrailingStop()
                   double new_sl = Bid - trailing_step;
                   if(new_sl > OrderStopLoss() + point)
                   {
-                     bool res = OrderModify(OrderTicket(), OrderOpenPrice(), new_sl, OrderTakeProfit(), 0, clrNONE);
+                     bool res = OrderModify(OrderTicket(), OrderOpenPrice(), new_sl, OrderTakeProfit(), 0, clrGreen);
                   }
                }
             }
@@ -135,7 +155,7 @@ void ApplyTrailingStop()
                   double new_sl = Ask + trailing_step;
                   if(new_sl < OrderStopLoss() - point || OrderStopLoss() == 0)
                   {
-                     bool res = OrderModify(OrderTicket(), OrderOpenPrice(), new_sl, OrderTakeProfit(), 0, clrNONE);
+                     bool res = OrderModify(OrderTicket(), OrderOpenPrice(), new_sl, OrderTakeProfit(), 0, clrRed);
                   }
                }
             }
@@ -145,13 +165,14 @@ void ApplyTrailingStop()
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK                                                          |
+//| ON TICK EXECUTION                                                |
 //+------------------------------------------------------------------+
 void OnTick()
 {
    ApplyTrailingStop();
 
-   datetime current_bar_time = Time[0];
+   // Cek Bar Baru di Timeframe M1 (Trigger Scalping)
+   datetime current_bar_time = iTime(Symbol(), PERIOD_M1, 0);
    if(current_bar_time == m_last_bar_time) return;
    m_last_bar_time = current_bar_time;
 
@@ -169,43 +190,44 @@ void OnTick()
 
    if(total_orders > 0) return;
 
-   double fast_ema1 = iMA(Symbol(), 0, InpFastEMA, 0, MODE_EMA, PRICE_CLOSE, 1);
-   double fast_ema2 = iMA(Symbol(), 0, InpFastEMA, 0, MODE_EMA, PRICE_CLOSE, 2);
-   double slow_ema1 = iMA(Symbol(), 0, InpSlowEMA, 0, MODE_EMA, PRICE_CLOSE, 1);
-   double slow_ema2 = iMA(Symbol(), 0, InpSlowEMA, 0, MODE_EMA, PRICE_CLOSE, 2);
-   double rsi       = iRSI(Symbol(), 0, InpRSIPeriod, PRICE_CLOSE, 1);
+   // 1. Ambil Data Indikator BIAS M15
+   double m15_fast = iMA(Symbol(), PERIOD_M15, InpM15FastEMA, 0, MODE_EMA, PRICE_CLOSE, 0);
+   double m15_slow = iMA(Symbol(), PERIOD_M15, InpM15SlowEMA, 0, MODE_EMA, PRICE_CLOSE, 0);
+
+   bool m15_bullish_bias = (m15_fast > m15_slow);
+   bool m15_bearish_bias = (m15_fast < m15_slow);
+
+   // 2. Ambil Data Indikator ENTRY M1
+   double m1_fast_prev = iMA(Symbol(), PERIOD_M1, InpM1FastEMA, 0, MODE_EMA, PRICE_CLOSE, 2);
+   double m1_fast_curr = iMA(Symbol(), PERIOD_M1, InpM1FastEMA, 0, MODE_EMA, PRICE_CLOSE, 1);
+   double m1_slow_prev = iMA(Symbol(), PERIOD_M1, InpM1SlowEMA, 0, MODE_EMA, PRICE_CLOSE, 2);
+   double m1_slow_curr = iMA(Symbol(), PERIOD_M1, InpM1SlowEMA, 0, MODE_EMA, PRICE_CLOSE, 1);
+   double m1_rsi       = iRSI(Symbol(), PERIOD_M1, InpM1RSIPeriod, PRICE_CLOSE, 1);
 
    double point = Point;
-   if(Digits == 3 || Digits == 5) point *= 10;
 
-   // Sinyal BUY
-   if(fast_ema2 <= slow_ema2 && fast_ema1 > slow_ema1 && rsi > 50.0 && rsi < InpRSIOverbought)
+   // 3. SINYAL BUY SCALPING:
+   if(m15_bullish_bias && (m1_fast_prev <= m1_slow_prev && m1_fast_curr > m1_slow_curr) && (m1_rsi > 45.0 && m1_rsi < InpRSIOverbought))
    {
-      double sl = Ask - (InpStopLossPips * point);
-      double tp = Ask + (InpTakeProfitPips * point);
-      int ticket = OrderSend(Symbol(), OP_BUY, InpLotSize, Ask, InpSlippage, sl, tp, "EA Sentinel BUY", InpMagicNumber, 0, clrGreen);
+      double ask = Ask;
+      double sl = ask - (InpStopLossPips * 10 * point);
+      double tp = ask + (InpTakeProfitPips * 10 * point);
+      int ticket = OrderSend(Symbol(), OP_BUY, InpLotSize, ask, InpSlippage, sl, tp, "Scalp BUY M1", InpMagicNumber, 0, clrGreen);
       if(ticket > 0)
       {
-         string fields = "{\"name\": \"🏷️ Tipe Order\", \"value\": \"🟢 **BUY**\", \"inline\": true}," +
-                         "{\"name\": \"📊 Simbol & Lot\", \"value\": \"`" + Symbol() + "` (" + DoubleToString(InpLotSize, 2) + " Lot)\", \"inline\": true}," +
-                         "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(Ask, Digits) + "`\", \"inline\": true}," +
-                         "{\"name\": \"🛡️ Stop Loss / TP\", \"value\": \"`SL: " + DoubleToString(sl, Digits) + " | TP: " + DoubleToString(tp, Digits) + "`\", \"inline\": false}";
-         SendDiscordEmbed("⚡ OPEN POSISI BUY (" + Symbol() + ")", "Eksekusi otomatis sinyal EMA & RSI.", 0x2ECC71, fields, false);
+         NotifyOpenTrade("BUY", ask, sl, tp, ticket, "Bullish (EMA 20 > EMA 50)");
       }
    }
-   // Sinyal SELL
-   else if(fast_ema2 >= slow_ema2 && fast_ema1 < slow_ema1 && rsi < 50.0 && rsi > InpRSIOversold)
+   // 4. SINYAL SELL SCALPING:
+   else if(m15_bearish_bias && (m1_fast_prev >= m1_slow_prev && m1_fast_curr < m1_slow_curr) && (m1_rsi < 55.0 && m1_rsi > InpRSIOversold))
    {
-      double sl = Bid + (InpStopLossPips * point);
-      double tp = Bid - (InpTakeProfitPips * point);
-      int ticket = OrderSend(Symbol(), OP_SELL, InpLotSize, Bid, InpSlippage, sl, tp, "EA Sentinel SELL", InpMagicNumber, 0, clrRed);
+      double bid = Bid;
+      double sl = bid + (InpStopLossPips * 10 * point);
+      double tp = bid - (InpTakeProfitPips * 10 * point);
+      int ticket = OrderSend(Symbol(), OP_SELL, InpLotSize, bid, InpSlippage, sl, tp, "Scalp SELL M1", InpMagicNumber, 0, clrRed);
       if(ticket > 0)
       {
-         string fields = "{\"name\": \"🏷️ Tipe Order\", \"value\": \"🔴 **SELL**\", \"inline\": true}," +
-                         "{\"name\": \"📊 Simbol & Lot\", \"value\": \"`" + Symbol() + "` (" + DoubleToString(InpLotSize, 2) + " Lot)\", \"inline\": true}," +
-                         "{\"name\": \"🎯 Harga Open\", \"value\": \"`" + DoubleToString(Bid, Digits) + "`\", \"inline\": true}," +
-                         "{\"name\": \"🛡️ Stop Loss / TP\", \"value\": \"`SL: " + DoubleToString(sl, Digits) + " | TP: " + DoubleToString(tp, Digits) + "`\", \"inline\": false}";
-         SendDiscordEmbed("⚡ OPEN POSISI SELL (" + Symbol() + ")", "Eksekusi otomatis sinyal EMA & RSI.", 0xE74C3C, fields, false);
+         NotifyOpenTrade("SELL", bid, sl, tp, ticket, "Bearish (EMA 20 < EMA 50)");
       }
    }
 }
