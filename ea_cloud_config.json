@@ -1,7 +1,7 @@
 {
-  "version": "4.10",
+  "version": "4.50",
   "sync_interval_min": 5,
-  "engine_name": "XAUUSD Hyper-Scalper Engine (Tri-Layer Sweet Spot)",
+  "engine_name": "XAUUSD Sovereign Scalper Engine (5 Pilar Institusional)",
   "auto_lot": true,
   "balance_per_step": 500.0,
   "lot_per_step": 0.01,
@@ -10,6 +10,9 @@
   "max_spread_points": 80,
   "max_open_positions": 3,
   "min_layer_distance_points": 30,
+  "use_dynamic_atr": true,
+  "use_directional_lock": true,
+  "use_rollover_guard": true,
   "use_trailing_stop": true,
   "trailing_start_points": 100,
   "trailing_distance_points": 60,
@@ -17,5 +20,5 @@
   "use_daily_guard": true,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 7.0,
-  "status_message": "OTA v4.10 Aktif - Hyper-Fast Tri-Layer Grid (Maksimal 3 Layer Sweet Spot): Wick Rejection Sniper + Fast Stoch."
+  "status_message": "OTA v4.50 Aktif - Sovereign Edition: Dynamic ATR SL/TP + Multi-Stage TP + Direction Lock + Anti-Rollover Guard."
 }
