@@ -1356,21 +1356,21 @@ void ManageOpenPositions()
             double sl_dist_pts = (cur_sl > 0) ? (open_p - cur_sl) / point : InpMinSLPoints;
             if(sl_dist_pts <= 0) sl_dist_pts = InpMinSLPoints;
 
-            // 1. Stage 1: True-BE Move when Profit >= 1.0x SL Distance
-            if(InpUseTrueZeroLossBE && profit_pts >= sl_dist_pts)
+            // 1. Stage 1: Lock Profit when Profit >= 1.5x SL Distance
+            if(profit_pts >= 1.5 * sl_dist_pts)
             {
-               double true_be = CalculateCommissionAwareBE(true, open_p, volume, InpTrueBEExtraBufferPts);
-               if(cur_sl < true_be && (cur_bid - true_be >= min_stop_dist))
+               double lock_sl = m_symbol.NormalizePrice(open_p + (0.5 * sl_dist_pts) * point);
+               if(cur_sl < lock_sl && (cur_bid - lock_sl >= min_stop_dist))
                {
                   m_trade.SetExpertMagicNumber(InpMagicSniper);
-                  m_trade.PositionModify(ticket, true_be, cur_tp);
-                  Print("🔒 [TRUE-BE LOCK] Sniper BUY #", ticket, " surplus +", DoubleToString(profit_pts/10.0, 1), " pips! SL dikunci di True-BE (Anti-Minus)!");
+                  m_trade.PositionModify(ticket, lock_sl, cur_tp);
+                  Print("🔒 [PROFIT LOCK +0.5R] Sniper BUY #", ticket, " surplus +", DoubleToString(profit_pts/10.0, 1), " pips! SL dikunci di +0.5R!");
                }
             }
-            // 2. Stage 2: Trailing Stop when Profit >= TrailingStartR * SL
-            else if(InpUseM15Trailing && profit_pts >= InpTrailingStartR * sl_dist_pts)
+            // 2. Stage 2: Trailing Stop when Profit >= 2.0x SL Distance
+            else if(InpUseM15Trailing && profit_pts >= 2.0 * sl_dist_pts)
             {
-               double new_sl = m_symbol.NormalizePrice(cur_bid - InpTrailingDistPts * point);
+               double new_sl = m_symbol.NormalizePrice(cur_bid - sl_dist_pts * 0.8 * point);
                if(new_sl > cur_sl + InpTrailingStepPts * point && (cur_bid - new_sl >= min_stop_dist))
                {
                   m_trade.SetExpertMagicNumber(InpMagicSniper);
@@ -1384,21 +1384,21 @@ void ManageOpenPositions()
             double sl_dist_pts = (cur_sl > 0) ? (cur_sl - open_p) / point : InpMinSLPoints;
             if(sl_dist_pts <= 0) sl_dist_pts = InpMinSLPoints;
 
-            // 1. Stage 1: True-BE Move when Profit >= 1.0x SL Distance
-            if(InpUseTrueZeroLossBE && profit_pts >= sl_dist_pts)
+            // 1. Stage 1: Lock Profit when Profit >= 1.5x SL Distance
+            if(profit_pts >= 1.5 * sl_dist_pts)
             {
-               double true_be = CalculateCommissionAwareBE(false, open_p, volume, InpTrueBEExtraBufferPts);
-               if((cur_sl == 0 || cur_sl > true_be) && (true_be - cur_ask >= min_stop_dist))
+               double lock_sl = m_symbol.NormalizePrice(open_p - (0.5 * sl_dist_pts) * point);
+               if((cur_sl == 0 || cur_sl > lock_sl) && (lock_sl - cur_ask >= min_stop_dist))
                {
                   m_trade.SetExpertMagicNumber(InpMagicSniper);
-                  m_trade.PositionModify(ticket, true_be, cur_tp);
-                  Print("🔒 [TRUE-BE LOCK] Sniper SELL #", ticket, " surplus +", DoubleToString(profit_pts/10.0, 1), " pips! SL dikunci di True-BE (Anti-Minus)!");
+                  m_trade.PositionModify(ticket, lock_sl, cur_tp);
+                  Print("🔒 [PROFIT LOCK +0.5R] Sniper SELL #", ticket, " surplus +", DoubleToString(profit_pts/10.0, 1), " pips! SL dikunci di +0.5R!");
                }
             }
-            // 2. Stage 2: Trailing Stop when Profit >= TrailingStartR * SL
-            else if(InpUseM15Trailing && profit_pts >= InpTrailingStartR * sl_dist_pts)
+            // 2. Stage 2: Trailing Stop when Profit >= 2.0x SL Distance
+            else if(InpUseM15Trailing && profit_pts >= 2.0 * sl_dist_pts)
             {
-               double new_sl = m_symbol.NormalizePrice(cur_ask + InpTrailingDistPts * point);
+               double new_sl = m_symbol.NormalizePrice(cur_ask + sl_dist_pts * 0.8 * point);
                if((cur_sl == 0 || new_sl < cur_sl - InpTrailingStepPts * point) && (new_sl - cur_ask >= min_stop_dist))
                {
                   m_trade.SetExpertMagicNumber(InpMagicSniper);
@@ -1655,8 +1655,8 @@ void OnTick()
    double rsi_h4    = rsi_h4_buf[0];
    double adx_h4    = adx_h4_buf[0];
 
-   bool macro_bullish = (ema50_h1 > ema21_h1 || rates_m15[0].close > ema50_h1) && (ema50_h4 >= ema200_h4);
-   bool macro_bearish = (ema50_h1 < ema21_h1 || rates_m15[0].close < ema50_h1) && (ema50_h4 <= ema200_h4);
+   bool macro_bullish = (rates_m15[1].close > ema50_h1) && (ema50_h4 > ema200_h4);
+   bool macro_bearish = (rates_m15[1].close < ema50_h1) && (ema50_h4 < ema200_h4);
    string macro_bias_str = macro_bullish ? "BULLISH DOMINANCE 🟢" : macro_bearish ? "BEARISH DOMINANCE 🔴" : "NETRAL ⚪";
 
    // 11. ANATOMI REJECTION CANDLE M15 (BAR 1 CONFIRMED CLOSE)
@@ -1669,8 +1669,13 @@ void OnTick()
    double lower_wick = MathMin(bar1_open, bar1_close) - bar1_low;
    double upper_wick = bar1_high - MathMax(bar1_open, bar1_close);
 
-   bool is_bullish_rejection = (bar1_range > 0) && ((lower_wick >= 0.35 * bar1_range) || (bar1_close > rates_m15[2].high));
-   bool is_bearish_rejection = (bar1_range > 0) && ((upper_wick >= 0.35 * bar1_range) || (bar1_close < rates_m15[2].low));
+   double bar2_body = MathAbs(rates_m15[2].close - rates_m15[2].open);
+   double bar1_body = MathAbs(bar1_close - bar1_open);
+   bool is_bullish_engulf = (bar1_close > bar1_open) && (rates_m15[2].close < rates_m15[2].open) && (bar1_close > rates_m15[2].open) && (bar1_open < rates_m15[2].close);
+   bool is_bearish_engulf = (bar1_close < bar1_open) && (rates_m15[2].close > rates_m15[2].open) && (bar1_close < rates_m15[2].open) && (bar1_open > rates_m15[2].close);
+
+   bool is_bullish_rejection = (bar1_range > 0) && ((lower_wick >= 0.45 * bar1_range && bar1_close >= bar1_open) || is_bullish_engulf);
+   bool is_bearish_rejection = (bar1_range > 0) && ((upper_wick >= 0.45 * bar1_range && bar1_close <= bar1_open) || is_bearish_engulf);
 
    // =================================================================
    // 12. EVALUASI MESIN 1: M15 INSTITUTIONAL SINGLE-ENTRY SNIPER
@@ -1690,35 +1695,33 @@ void OnTick()
       SFairValueGap fvg;
       DetectM15FairValueGap(fvg);
 
-      // BUY CONFLUENCE SETUP
-      if(macro_bullish && rsi_m15 >= 38.0 && rsi_m15 <= 62.0 && is_bullish_rejection)
+      // BUY CONFLUENCE SETUP (A+ Institutional Quality Only)
+      if(macro_bullish && rsi_m15 >= 40.0 && rsi_m15 <= 60.0 && is_bullish_rejection)
       {
-         bool in_fib_pocket = (!InpUseGoldenFibPocket) || (bar1_low <= fib_m15.fib_500 && bar1_close >= fib_m15.fib_618);
-         bool in_fvg_retest = (InpUseFVGFilter && fvg.exists && fvg.is_bullish && bar1_low <= fvg.upper_level && bar1_close >= fvg.lower_level);
+         bool in_fib_pocket = (bar1_low <= fib_m15.fib_500 && bar1_close >= fib_m15.fib_786);
+         bool in_fvg_retest = (fvg.exists && fvg.is_bullish && bar1_low <= fvg.upper_level && bar1_close >= fvg.lower_level);
 
-         if(in_fib_pocket || in_fvg_retest || bar1_low <= ema50_m15)
+         if(in_fib_pocket || in_fvg_retest)
          {
             if(sniper_total == 0)
             {
                sniper_buy_sig = true;
-               sniper_reason = in_fib_pocket ? "M15 Golden Fib Pocket (50-61.8%) + Pinbar Rejection" :
-                               in_fvg_retest ? "M15 FVG Retest + Bullish Rejection" : "M15 EMA50 Dip Rebound";
+               sniper_reason = in_fib_pocket ? "M15 Golden Fib Pocket (50-61.8%) Rejection" : "M15 FVG Retest Rejection";
             }
          }
       }
-      // SELL CONFLUENCE SETUP
-      else if(macro_bearish && rsi_m15 >= 38.0 && rsi_m15 <= 62.0 && is_bearish_rejection)
+      // SELL CONFLUENCE SETUP (A+ Institutional Quality Only)
+      else if(macro_bearish && rsi_m15 >= 40.0 && rsi_m15 <= 60.0 && is_bearish_rejection)
       {
-         bool in_fib_pocket = (!InpUseGoldenFibPocket) || (bar1_high >= fib_m15.fib_500 && bar1_close <= fib_m15.fib_618);
-         bool in_fvg_retest = (InpUseFVGFilter && fvg.exists && !fvg.is_bullish && bar1_high >= fvg.lower_level && bar1_close <= fvg.upper_level);
+         bool in_fib_pocket = (bar1_high >= fib_m15.fib_500 && bar1_close <= fib_m15.fib_786);
+         bool in_fvg_retest = (fvg.exists && !fvg.is_bullish && bar1_high >= fvg.lower_level && bar1_close <= fvg.upper_level);
 
-         if(in_fib_pocket || in_fvg_retest || bar1_high >= ema50_m15)
+         if(in_fib_pocket || in_fvg_retest)
          {
             if(sniper_total == 0)
             {
                sniper_sell_sig = true;
-               sniper_reason = in_fib_pocket ? "M15 Golden Fib Pocket (50-61.8%) + Pinbar Rejection" :
-                               in_fvg_retest ? "M15 FVG Retest + Bearish Rejection" : "M15 EMA50 Rally Rebound";
+               sniper_reason = in_fib_pocket ? "M15 Golden Fib Pocket (50-61.8%) Rejection" : "M15 FVG Retest Rejection";
             }
          }
       }
