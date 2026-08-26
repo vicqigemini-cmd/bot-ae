@@ -24,7 +24,7 @@ input string   InpBotName           = "EA Scalper Cloud Sentinel MT5";          
 
 input group "=== OTA CLOUD AUTO-SYNC (1x PASANG = AUTO UPDATE) ==="
 input bool     InpEnableCloudSync   = true;      // Aktifkan Sinkronisasi Parameter Otomatis dari GitHub
-input int      InpSyncIntervalMin   = 15;        // Interval Cek Update Cloud (Menit)
+input int      InpSyncIntervalMin   = 5;         // Interval Cek Update Cloud (Menit) - Setiap 5 Menit
 
 input group "=== DEFAULT SETTINGS (OTOMATIS TERSINKRON DARI CLOUD) ==="
 input bool     InpUseAutoLot        = true;      // Gunakan Auto-Lot Berdasarkan Saldo
