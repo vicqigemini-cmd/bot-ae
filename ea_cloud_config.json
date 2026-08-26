@@ -1,7 +1,7 @@
 {
-  "version": "5.10",
+  "version": "5.20",
   "sync_interval_min": 5,
-  "engine_name": "XAUUSD Apex Active Scalper Engine (Micro-Pullback Sniper)",
+  "engine_name": "XAUUSD Apex Active Scalper Engine (Exact History Match)",
   "auto_lot": true,
   "balance_per_step": 500.0,
   "lot_per_step": 0.01,
@@ -13,7 +13,7 @@
   "use_regime_switching": true,
   "use_session_vwap": true,
   "use_asian_sweep_trap": true,
-  "use_triple_screen": true,
+  "use_triple_screen": false,
   "use_defend_the_bag": true,
   "defend_bag_profit_percent": 8.0,
   "use_dynamic_atr": true,
@@ -27,8 +27,8 @@
   "trailing_start_points": 100,
   "trailing_distance_points": 60,
   "trailing_step_points": 15,
-  "use_daily_guard": true,
+  "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
-  "daily_max_loss_percent": 7.0,
-  "status_message": "OTA v5.10 Aktif - Apex Active: Micro-Pullback Sniper (Dip to EMA13) + Fast Stoch Hook + Session VWAP Reversal."
+  "daily_max_loss_percent": 15.0,
+  "status_message": "OTA v5.20 Aktif - Exact History Sync: Kalkulasi PnL Harian 100% Cocok Persis dengan Tab History MT5 (DEAL_ENTRY_OUT)."
 }
