@@ -131,6 +131,17 @@ datetime last_trade_time = 0;
 datetime m_last_cloud_sync_time = 0;
 datetime g_cooldown_until = 0;
 int      g_consecutive_losses = 0;
+//--- Cache Globals untuk Optimalisasi
+double   g_cached_daily_pl    = 0.0;
+datetime g_last_pl_calc_time  = 0;
+bool     g_is_news_time       = false;
+datetime g_last_news_check    = 0;
+double   g_cached_vwap        = 0.0;
+double   g_cached_vwap_up     = 0.0;
+double   g_cached_vwap_low    = 0.0;
+datetime g_last_vwap_time     = 0;
+datetime g_last_asian_m5_bar  = 0;
+
 
 double   g_asian_high = 0.0;
 double   g_asian_low  = 0.0;
@@ -278,30 +289,33 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
 //+------------------------------------------------------------------+
 void CalculateSessionVWAP(double &vwap, double &upper_band, double &lower_band)
 {
+   datetime current_m1_time = iTime(_Symbol, PERIOD_M1, 0);
+   if(current_m1_time == g_last_vwap_time && g_cached_vwap > 0)
+   {
+      vwap = g_cached_vwap; upper_band = g_cached_vwap_up; lower_band = g_cached_vwap_low;
+      return;
+   }
+   
    vwap = m_symbol.Bid();
    upper_band = vwap + 120 * m_symbol.Point();
    lower_band = vwap - 120 * m_symbol.Point();
 
    datetime start_of_day = StringToTime(TimeToString(TimeCurrent(), TIME_DATE) + " 00:00");
-   MqlRates rates[];
-   ArraySetAsSeries(rates, true);
+   MqlRates rates[]; ArraySetAsSeries(rates, true);
    int copied = CopyRates(_Symbol, PERIOD_M1, start_of_day, TimeCurrent(), rates);
    if(copied <= 5) return;
 
-   double cum_vol_price = 0.0;
-   long   cum_volume    = 0;
+   double cum_vol_price = 0.0; long cum_volume = 0;
    for(int i = 0; i < copied; i++)
    {
       double typical_price = (rates[i].high + rates[i].low + rates[i].close) / 3.0;
       long vol = (rates[i].tick_volume > 0) ? rates[i].tick_volume : 1;
-      cum_vol_price += typical_price * vol;
-      cum_volume += vol;
+      cum_vol_price += typical_price * vol; cum_volume += vol;
    }
 
    if(cum_volume > 0)
    {
       vwap = cum_vol_price / cum_volume;
-
       double sum_sq_diff = 0.0;
       for(int i = 0; i < copied; i++)
       {
@@ -311,6 +325,9 @@ void CalculateSessionVWAP(double &vwap, double &upper_band, double &lower_band)
       double std_dev = MathSqrt(sum_sq_diff / copied);
       upper_band = vwap + 1.2 * std_dev;
       lower_band = vwap - 1.2 * std_dev;
+      
+      g_cached_vwap = vwap; g_cached_vwap_up = upper_band; g_cached_vwap_low = lower_band;
+      g_last_vwap_time = current_m1_time;
    }
 }
 
@@ -319,6 +336,9 @@ void CalculateSessionVWAP(double &vwap, double &upper_band, double &lower_band)
 //+------------------------------------------------------------------+
 void UpdateAsianRange()
 {
+   datetime current_m5_time = iTime(_Symbol, PERIOD_M5, 0);
+   if(current_m5_time == g_last_asian_m5_bar && g_asian_high > 0) return;
+
    datetime today_date = StringToTime(TimeToString(TimeCurrent(), TIME_DATE));
    if(g_asian_date != today_date)
    {
@@ -347,6 +367,7 @@ void UpdateAsianRange()
          }
          g_asian_high = highest;
          g_asian_low  = lowest;
+         g_last_asian_m5_bar = current_m5_time;
       }
    }
 }
@@ -369,8 +390,21 @@ ENUM_MARKET_REGIME DetectMarketRegime(double bb_up, double bb_low, double ema5, 
 //+------------------------------------------------------------------+
 double GetDailyProfitLoss()
 {
-   datetime start_of_day = StringToTime(TimeToString(TimeCurrent(), TIME_DATE) + " 00:00");
-   HistorySelect(start_of_day, TimeCurrent());
+   if(TimeCurrent() - g_last_pl_calc_time < 3) return g_cached_daily_pl;
+   
+   datetime gmt_now = TimeGMT();
+   datetime wib_now = gmt_now + 7 * 3600;
+   
+   MqlDateTime dt_wib;
+   TimeToStruct(wib_now, dt_wib);
+   dt_wib.hour = 0; dt_wib.min = 0; dt_wib.sec = 0;
+   
+   datetime wib_start = StructToTime(dt_wib);
+   datetime gmt_start = wib_start - 7 * 3600;
+   int broker_offset = (int)(TimeCurrent() - TimeGMT());
+   datetime broker_start = gmt_start + broker_offset;
+   
+   HistorySelect(broker_start, TimeCurrent() + 86400);
    
    double total_profit = 0.0;
    int deals = HistoryDealsTotal();
@@ -385,6 +419,8 @@ double GetDailyProfitLoss()
          }
       }
    }
+   g_cached_daily_pl = total_profit;
+   g_last_pl_calc_time = TimeCurrent();
    return total_profit;
 }
 
@@ -443,7 +479,9 @@ double CalculateLotSizeWithDefendTheBag(double sl_points)
 bool IsHighImpactNewsTime()
 {
    if(!InpUseRedNewsGuard) return false;
-
+   if(TimeCurrent() - g_last_news_check < 60) return g_is_news_time;
+   
+   bool is_news = false;
    MqlCalendarValue values[];
    datetime from_time = TimeCurrent() - InpNewsBufferMin * 60;
    datetime to_time   = TimeCurrent() + InpNewsBufferMin * 60;
@@ -456,18 +494,22 @@ bool IsHighImpactNewsTime()
          MqlCalendarEvent event;
          if(CalendarEventById(values[i].event_id, event))
          {
-            if(event.importance == CALENDAR_IMPORTANCE_HIGH) return true;
+            if(event.importance == CALENDAR_IMPORTANCE_HIGH) { is_news = true; break; }
          }
       }
    }
 
-   MqlDateTime dt;
-   TimeToStruct(TimeCurrent(), dt);
-   if(dt.hour == 12 && dt.min >= (30 - InpNewsBufferMin) && dt.min <= (30 + InpNewsBufferMin)) return true;
-   if(dt.hour == 14 && dt.min <= InpNewsBufferMin) return true;
-   if(dt.hour == 18 && dt.min <= InpNewsBufferMin) return true;
+   if(!is_news)
+   {
+      MqlDateTime dt; TimeToStruct(TimeCurrent(), dt);
+      if(dt.hour == 12 && dt.min >= (30 - InpNewsBufferMin) && dt.min <= (30 + InpNewsBufferMin)) is_news = true;
+      if(dt.hour == 14 && dt.min <= InpNewsBufferMin) is_news = true;
+      if(dt.hour == 18 && dt.min <= InpNewsBufferMin) is_news = true;
+   }
 
-   return false;
+   g_is_news_time = is_news;
+   g_last_news_check = TimeCurrent();
+   return is_news;
 }
 
 //+------------------------------------------------------------------+
