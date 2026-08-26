@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL v14.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
+//|  APEX SOVEREIGN CITADEL v15.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
 //|  (SMC FVG • Golden Pocket 50-61.8% • 1:2.5 RR • Anti-Rungkad)    |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "14.00"
-#property description "Unified Master Brain EA v14.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
+#property version   "15.00"
+#property description "Unified Master Brain EA v15.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -23,6 +23,13 @@ int CopyFileW(string lpExistingFileName, string lpNewFileName, int bFailIfExists
 #import
 
 //--- Enums
+
+enum ENUM_ASSET_CLASS
+{
+   ASSET_GOLD   = 0, // XAUUSD / GOLD (Logam Mulia)
+   ASSET_FOREX  = 1, // EURUSD, GBPUSD, USDJPY, dll (Forex)
+   ASSET_INDEX  = 2  // US30, NAS100, SP500, GER40 (Indeks Saham)
+};
 enum ENUM_LOT_TYPE
 {
    LOT_RISK_PERCENT = 0, // Auto-Lot Berdasarkan % Risk Equity (Standar Institusional 1%)
@@ -144,9 +151,15 @@ input int                 InpNYKZStartHour         = 13;                    // N
 input int                 InpNYKZEndHour           = 17;                    // NY KZ End Hour (Server Time)
 input bool                InpTradeAsianSession     = false;                 // Izinkan Trading di Sesi Asia (False = Standby Hindari Chop)
 
+
+input group "=== 9. MULTI-PAIR PORTFOLIO & SHARED RISK MATRIX ==="
+input bool                InpEnableMultiPairMode   = true;                  // Izinkan EA Beroperasi di Semua Pair (XAU, Forex, Index)
+input double              InpMaxPortfolioRiskPct   = 2.0;                   // Batas Maksimal Total Risiko Terbuka Seluruh Portofolio (% Equity)
+input int                 InpMaxTotalOpenTradesAll = 3;                     // Batas Maksimal Total Posisi Terbuka Seluruh Portofolio
+
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "14.00";
-string                    g_last_self_updated_ver  = "14.00";
+string                    g_current_version        = "15.00";
+string                    g_last_self_updated_ver  = "15.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_max_spread             = 70;
@@ -791,6 +804,59 @@ void CalculateH4FibonacciLevels(SFibLevels &out_fib, int lookback_bars=24)
 }
 
 //+------------------------------------------------------------------+
+//| DETEKSI KELAS ASET (GOLD / FOREX / INDEX)                        |
+//+------------------------------------------------------------------+
+ENUM_ASSET_CLASS GetAssetClass(string symbol)
+{
+   string sym = symbol;
+   StringToUpper(sym);
+   if(StringFind(sym, "XAU") >= 0 || StringFind(sym, "GOLD") >= 0 || StringFind(sym, "SILVER") >= 0 || StringFind(sym, "XAG") >= 0)
+      return ASSET_GOLD;
+   if(StringFind(sym, "30") >= 0 || StringFind(sym, "100") >= 0 || StringFind(sym, "500") >= 0 || StringFind(sym, "DAX") >= 0 || StringFind(sym, "NAS") >= 0 || StringFind(sym, "DOW") >= 0)
+      return ASSET_INDEX;
+   return ASSET_FOREX;
+}
+
+//+------------------------------------------------------------------+
+//| HITUNG TOTAL RISIKO TERBUKA SELURUH PORTOFOLIO (% EQUITY)        |
+//+------------------------------------------------------------------+
+double CalculateTotalPortfolioOpenRiskPct()
+{
+   double equity = m_account.Equity();
+   if(equity <= 0) return 0.0;
+
+   double total_risk_usd = 0.0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      if(m_position.SelectByIndex(i))
+      {
+         double pos_sl = m_position.StopLoss();
+         double open_p = m_position.PriceOpen();
+         double vol    = m_position.Volume();
+         string sym    = m_position.Symbol();
+
+         CSymbolInfo pos_sym;
+         pos_sym.Name(sym);
+         pos_sym.Refresh();
+         double tick_v = pos_sym.TickValue();
+         if(tick_v <= 0) tick_v = 1.0;
+         double point_v = tick_v / (pos_sym.TickSize() / (pos_sym.Point() > 0 ? pos_sym.Point() : 0.001));
+
+         if(pos_sl > 0)
+         {
+            double dist_pts = MathAbs(open_p - pos_sl) / (pos_sym.Point() > 0 ? pos_sym.Point() : 0.001);
+            total_risk_usd += dist_pts * point_v * vol;
+         }
+         else
+         {
+            total_risk_usd += (equity * (InpRiskPercent / 100.0));
+         }
+      }
+   }
+   return NormalizeDouble((total_risk_usd / equity) * 100.0, 2);
+}
+
+//+------------------------------------------------------------------+
 //| DETEKSI INSTITUTIONAL KILL-ZONES TIME WINDOW                     |
 //+------------------------------------------------------------------+
 bool IsInsideInstitutionalKillZone(string &out_session_name)
@@ -1023,9 +1089,24 @@ void CalculateM15StructuralSLTP(bool is_buy, double &out_sl_pts, double &out_tp_
       }
    }
 
+   // Asset-Adaptive SL Bounds
+   ENUM_ASSET_CLASS asset = GetAssetClass(_Symbol);
+   int min_sl = InpMinSLPoints;
+   int max_sl = InpMaxSLPoints;
+   if(asset == ASSET_FOREX)
+   {
+      min_sl = 150; // 15 pips
+      max_sl = 350; // 35 pips
+   }
+   else if(asset == ASSET_INDEX)
+   {
+      min_sl = 500;
+      max_sl = 1500;
+   }
+
    // Constrain SL between Min and Max points
-   if(out_sl_pts < InpMinSLPoints) out_sl_pts = InpMinSLPoints;
-   if(out_sl_pts > InpMaxSLPoints) out_sl_pts = InpMaxSLPoints;
+   if(out_sl_pts < min_sl) out_sl_pts = min_sl;
+   if(out_sl_pts > max_sl) out_sl_pts = max_sl;
 
    out_tp_pts = NormalizeDouble(out_sl_pts * InpRiskRewardRatio, 0);
 }
@@ -1196,13 +1277,9 @@ void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest 
 //+------------------------------------------------------------------+
 int OnInit()
 {
-   string sym = _Symbol;
-   StringToUpper(sym);
-   if(StringFind(sym, "XAU") < 0 && StringFind(sym, "GOLD") < 0)
-   {
-      Alert("PERINGATAN: EA 'XAUUSD Institutional Sniper' hanya boleh dipasang pada chart XAUUSD / GOLD!");
-      return INIT_FAILED;
-   }
+   ENUM_ASSET_CLASS asset_type = GetAssetClass(_Symbol);
+   string asset_desc = (asset_type == ASSET_GOLD) ? "GOLD / METALS 🪙" : (asset_type == ASSET_INDEX) ? "EQUITY INDEX 📈" : "MAJOR FOREX 💱";
+   Print("🌐 [UNIVERSAL ASSET DETECTED] Symbol: ", _Symbol, " | Kategori: ", asset_desc);
 
    if(!m_symbol.Name(_Symbol)) return INIT_FAILED;
    m_symbol.Refresh();
@@ -1258,7 +1335,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Lot Size Model\", \"value\": \"`" + (InpLotType == LOT_RISK_PERCENT ? "1.0% Equity Risk (" + DoubleToString(current_lot, 2) + " Lot)" : "Fixed/Step") + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v14.00 Anti-Rungkad)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v15.00 Anti-Rungkad)! 🚀", 
                     "Sistem M15 Single-Entry Sniper siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng kuantitatif mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -1584,7 +1661,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v14.00)        |
+//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v15.00)        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
@@ -1835,8 +1912,12 @@ void OnTick()
    if(m_symbol.Spread() > g_max_spread) return;
    if(TimeCurrent() < g_cooldown_until) return;
 
+   // 15.5 PROTEKSI SHARED PORTFOLIO RISK MATRIX
+   double open_port_risk = CalculateTotalPortfolioOpenRiskPct();
+   bool is_portfolio_risk_ok = (open_port_risk + InpRiskPercent <= InpMaxPortfolioRiskPct) && (PositionsTotal() < InpMaxTotalOpenTradesAll);
+
    // 16. EKSEKUSI MESIN 1: M15 SNIPER (SINGLE SNIPER ENTRY)
-   if(InpEnableM15Sniper && sniper_total == 0 && is_in_killzone)
+   if(InpEnableM15Sniper && sniper_total == 0 && is_in_killzone && is_portfolio_risk_ok)
    {
       if(sniper_buy_sig)
       {
