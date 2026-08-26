@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL v22.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
+//|  APEX SOVEREIGN CITADEL v23.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
 //|  (SMC FVG • Golden Pocket 50-61.8% • 1:2.5 RR • Anti-Rungkad)    |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "22.00"
-#property description "Unified Master Brain EA v22.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
+#property version   "23.00"
+#property description "Unified Master Brain EA v23.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -158,8 +158,8 @@ input double              InpMaxPortfolioRiskPct   = 2.0;                   // B
 input int                 InpMaxTotalOpenTradesAll = 3;                     // Batas Maksimal Total Posisi Terbuka Seluruh Portofolio
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "22.00";
-string                    g_last_self_updated_ver  = "22.00";
+string                    g_current_version        = "23.00";
+string                    g_last_self_updated_ver  = "23.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_max_spread             = 70;
@@ -550,13 +550,20 @@ bool PerformAutonomousSelfUpdate(string new_version)
 }
 
 //+------------------------------------------------------------------+
-//| HITUNG PROFIT / LOSS HARIAN                                      |
+//| HITUNG PROFIT / LOSS HARIAN (EVENT-DRIVEN ZERO-LAG CACHE)        |
 //+------------------------------------------------------------------+
+datetime g_last_daily_pnl_calc = 0;
+double   g_cached_daily_pnl    = 0.0;
+
 double GetDailyProfitLoss(bool force_recalc=false)
 {
    datetime now = TimeCurrent();
-   datetime today_start = StringToTime(TimeToString(now, TIME_DATE) + " 00:00");
+   if(!force_recalc && (now - g_last_daily_pnl_calc < 10) && g_last_daily_pnl_calc > 0)
+   {
+      return g_cached_daily_pnl;
+   }
 
+   datetime today_start = StringToTime(TimeToString(now, TIME_DATE) + " 00:00");
    HistorySelect(today_start, now + 60);
    int total_deals = HistoryDealsTotal();
    double total_profit = 0.0;
@@ -579,7 +586,9 @@ double GetDailyProfitLoss(bool force_recalc=false)
          }
       }
    }
-   return NormalizeDouble(total_profit, 2);
+   g_cached_daily_pnl = NormalizeDouble(total_profit, 2);
+   g_last_daily_pnl_calc = now;
+   return g_cached_daily_pnl;
 }
 
 //+------------------------------------------------------------------+
@@ -949,21 +958,30 @@ double CalculateTotalPortfolioOpenRiskPct()
          double vol    = m_position.Volume();
          string sym    = m_position.Symbol();
 
-         CSymbolInfo pos_sym;
-         pos_sym.Name(sym);
-         pos_sym.Refresh();
-         double tick_v = pos_sym.TickValue();
-         if(tick_v <= 0) tick_v = 1.0;
-         double point_v = tick_v / (pos_sym.TickSize() / (pos_sym.Point() > 0 ? pos_sym.Point() : 0.001));
+         bool is_buy = (m_position.PositionType() == POSITION_TYPE_BUY);
+         bool is_risk_free = (is_buy && pos_sl >= open_p) || (!is_buy && pos_sl > 0 && pos_sl <= open_p);
 
-         if(pos_sl > 0)
+         if(!is_risk_free)
          {
-            double dist_pts = MathAbs(open_p - pos_sl) / (pos_sym.Point() > 0 ? pos_sym.Point() : 0.001);
-            total_risk_usd += dist_pts * point_v * vol;
-         }
-         else
-         {
-            total_risk_usd += (equity * (InpRiskPercent / 100.0));
+            CSymbolInfo pos_sym;
+            pos_sym.Name(sym);
+            pos_sym.Refresh();
+            double tick_v = pos_sym.TickValue();
+            if(tick_v <= 0) tick_v = 1.0;
+            double pt = (pos_sym.Point() > 0 ? pos_sym.Point() : 0.001);
+            double ts = (pos_sym.TickSize() > 0 ? pos_sym.TickSize() : pt);
+            double point_v = (tick_v / ts) * pt;
+
+            if(pos_sl > 0)
+            {
+               double dist_pts = is_buy ? (open_p - pos_sl) : (pos_sl - open_p);
+               dist_pts = dist_pts / pt;
+               if(dist_pts > 0) total_risk_usd += dist_pts * point_v * vol;
+            }
+            else
+            {
+               total_risk_usd += (equity * (InpRiskPercent / 100.0));
+            }
          }
       }
    }
@@ -1540,7 +1558,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Lot Size Model\", \"value\": \"`" + (InpLotType == LOT_RISK_PERCENT ? "1.0% Equity Risk (" + DoubleToString(current_lot, 2) + " Lot)" : "Fixed/Step") + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v22.00 Anti-Rungkad)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v23.00 Anti-Rungkad)! 🚀", 
                     "Sistem M15 Single-Entry Sniper siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng kuantitatif mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -1829,6 +1847,10 @@ void ExecuteSniperOrder(ENUM_ORDER_TYPE order_type, string trigger_source, doubl
          NotifyAITrade("SNIPER", "BUY", ask, lot, sl, tp, ticket, trigger_source, current_spread, (int)sl_pts, (int)tp_pts);
          last_sniper_time = TimeCurrent();
       }
+      else
+      {
+         Print("❌ [SNIPER BUY REJECTED] Broker Retcode: ", m_trade.ResultRetcode(), " - ", m_trade.ResultRetcodeDescription());
+      }
    }
    else if(order_type == ORDER_TYPE_SELL)
    {
@@ -1842,6 +1864,10 @@ void ExecuteSniperOrder(ENUM_ORDER_TYPE order_type, string trigger_source, doubl
          Print("🎯 [M15 SNIPER SELL EXECUTED] Lot: ", lot, " | SL: -", sl_pts/10, " pips | TP: +", tp_pts/10, " pips");
          NotifyAITrade("SNIPER", "SELL", bid, lot, sl, tp, ticket, trigger_source, current_spread, (int)sl_pts, (int)tp_pts);
          last_sniper_time = TimeCurrent();
+      }
+      else
+      {
+         Print("❌ [SNIPER SELL REJECTED] Broker Retcode: ", m_trade.ResultRetcode(), " - ", m_trade.ResultRetcodeDescription());
       }
    }
 }
@@ -1899,7 +1925,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v22.00)        |
+//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v23.00)        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
