@@ -54,7 +54,7 @@ input string              InpTradeComment          = "AI_Brain_XAU";        // L
 input group "=== 4. MONEY & RISK MANAGEMENT ==="
 input ENUM_LOT_TYPE       InpLotType               = LOT_PER_BALANCE;       // Mode Lot Sizing
 input double              InpFixedLot              = 0.01;                  // Base Lot per Kelipatan
-input double              InpBalanceStep           = 100.0;                 // Saldo per Kelipatan Lot ($100 = 0.01 Lot)
+input double              InpBalanceStep           = 500.0;                 // Saldo per Kelipatan Lot ($500 = 0.01 Lot)
 input double              InpRiskPercent           = 1.0;                   // Risk % per Trade
 input int                 InpStopLossPoints        = 150;                   // Stop Loss (Points, 150 pts = 15 pips)
 input int                 InpTakeProfitPoints      = 300;                   // Take Profit (Points, 300 pts = 30 pips)
