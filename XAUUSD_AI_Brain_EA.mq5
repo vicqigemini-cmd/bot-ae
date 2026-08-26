@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
 //|  AI-Powered Dual-Regime M1/M15 Neural Scalper for Gold (XAUUSD)  |
-//|    (Deep Neural Net • OTA Cloud Sync • Discord Webhook • Guards) |
+//|  (Deep Neural Net • OTA Cloud Sync • 15% Target / 7% Max Loss)   |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "3.00"
-#property description "EA Scalping M1 Gold (XAUUSD) AI Deep Neural Network dengan Analisis Multi-Timeframe M15 & OTA Cloud Sync"
+#property version   "3.10"
+#property description "EA Scalping M1 Gold (XAUUSD) AI Deep Neural Network dengan Analisis M15, OTA Cloud Sync, Target 15% Wallet & Max Loss 7%"
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -26,7 +26,7 @@ enum ENUM_AI_ENGINE_MODE
 
 enum ENUM_LOT_TYPE
 {
-   LOT_PER_BALANCE  = 0, // Auto-Lot Proporsional ($100 = 0.01 Lot)
+   LOT_PER_BALANCE  = 0, // Auto-Lot Proporsional ($500 = 0.01 Lot)
    LOT_FIXED        = 1, // Fixed Lot Size (Lot Tetap)
    LOT_RISK_PERCENT = 2  // Auto Lot (% Risk dari Equity)
 };
@@ -70,10 +70,10 @@ input int                 InpTrailingStartPoints   = 120;                   // T
 input int                 InpTrailingDistance      = 80;                    // Jarak Trailing Stop (Points)
 input int                 InpTrailingStep          = 20;                    // Step Pergeseran Trailing (Points)
 
-input group "=== 6. DAILY TARGET & MAX LOSS GUARD ==="
+input group "=== 6. DAILY TARGET & MAX LOSS GUARD (% WALLET) ==="
 input bool                InpUseDailyGuard         = true;                  // Aktifkan Pengaman Target Harian
-input double              InpDailyTargetProfit     = 100.0;                 // Kunci Profit Harian ($) - Selesai trading
-input double              InpDailyMaxLoss          = 50.0;                  // Batas Rem Rugi Harian ($) - Rem pengaman
+input double              InpDailyTargetPercent    = 15.0;                  // Target Profit Harian (15% dari Total Wallet)
+input double              InpDailyMaxLossPercent   = 7.0;                   // Batas Rem Rugi Harian (7% dari Total Wallet)
 
 input group "=== 7. AI FEATURE INDICATORS (M15 & M1) ==="
 input int                 InpADX_Period_M15        = 14;                    // M15 ADX Period
@@ -87,9 +87,9 @@ input int                 InpBB_Period_M1          = 20;                    // M
 input double              InpBB_Dev_M1             = 2.0;                   // M1 BB Deviation
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "3.00";
+string                    g_current_version        = "3.10";
 double                    g_confidence_thresh      = 0.60;
-double                    g_balance_step           = 100.0;
+double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_sl_points              = 150;
 int                       g_tp_points              = 300;
@@ -99,8 +99,8 @@ int                       g_trailing_start         = 120;
 int                       g_trailing_dist          = 80;
 int                       g_trailing_step          = 20;
 bool                      g_use_daily_guard        = true;
-double                    g_daily_target_usd       = 100.0;
-double                    g_daily_max_loss_usd     = 50.0;
+double                    g_daily_target_pct       = 15.0;
+double                    g_daily_max_loss_pct     = 7.0;
 
 //--- Global Handles & Objects
 CTrade                    m_trade;
@@ -232,18 +232,22 @@ void FetchAndApplyCloudConfig(bool is_initial=false)
          g_max_spread         = (int)ExtractJsonNumber(json, "max_spread_points", InpMaxSpreadPoints);
          g_use_trailing       = ExtractJsonBool(json, "use_trailing_stop", InpUseTrailingStop);
          g_use_daily_guard    = ExtractJsonBool(json, "use_daily_guard", InpUseDailyGuard);
-         g_daily_target_usd   = ExtractJsonNumber(json, "daily_target_profit_usd", InpDailyTargetProfit);
-         g_daily_max_loss_usd = ExtractJsonNumber(json, "daily_max_loss_usd", InpDailyMaxLoss);
+         g_daily_target_pct   = ExtractJsonNumber(json, "daily_target_profit_percent", InpDailyTargetPercent);
+         g_daily_max_loss_pct = ExtractJsonNumber(json, "daily_max_loss_percent", InpDailyMaxLossPercent);
 
          if(is_new_version && !is_initial)
          {
+            double cur_bal = m_account.Balance();
+            double target_usd = cur_bal * (g_daily_target_pct / 100.0);
+            double loss_usd = cur_bal * (g_daily_max_loss_pct / 100.0);
+
             string update_fields = "{\"name\": \"🧠 Versi AI Engine\", \"value\": \"`v" + g_current_version + " (Cloud Synced)`\", \"inline\": true}," +
-                                   "{\"name\": \"🎯 AI Confidence Min\", \"value\": \"`" + DoubleToString(g_confidence_thresh * 100.0, 0) + "%`\", \"inline\": true}," +
-                                   "{\"name\": \"🛡️ Max Spread Guard\", \"value\": \"`" + IntegerToString(g_max_spread) + " Pts`\", \"inline\": true}," +
-                                   "{\"name\": \"🎯 Target SL / TP\", \"value\": \"`SL: " + IntegerToString(g_sl_points / 10) + " Pips | TP: " + IntegerToString(g_tp_points / 10) + " Pips`\", \"inline\": true}";
+                                   "{\"name\": \"🎯 Target Harian (15%)\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (" + DoubleToString(g_daily_target_pct, 0) + "% Wallet)`\", \"inline\": true}," +
+                                   "{\"name\": \"🛡️ Max Loss Harian (7%)\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (" + DoubleToString(g_daily_max_loss_pct, 0) + "% Wallet)`\", \"inline\": true}," +
+                                   "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot`\", \"inline\": true}";
             
-            SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (AI-BRAIN)!", 
-                             "Parameter AI & Strategi Scalping berhasil diperbarui secara otomatis dari GitHub!", 
+            SendDiscordEmbed("🔄 OTA CLOUD UPDATE DIAPLIKASIKAN (AI-BRAIN v" + g_current_version + ")!", 
+                             "Target Profit Harian 15% Wallet & Max Loss 7% Wallet berhasil disinkronkan secara otomatis dari GitHub!", 
                              0x9B59B6, update_fields, false);
          }
       }
@@ -275,7 +279,7 @@ double GetDailyProfitLoss()
 }
 
 //+------------------------------------------------------------------+
-//| KALKULASI AUTO-LOT ($100 = 0.01 LOT)                             |
+//| KALKULASI AUTO-LOT ($500 = 0.01 LOT)                             |
 //+------------------------------------------------------------------+
 double CalculateLotSize(double sl_points)
 {
@@ -331,7 +335,7 @@ void NotifyAITrade(string type, double price, double lot_used, double sl, double
                    "{\"name\": \"🛡️ Stop Loss\", \"value\": \"`" + DoubleToString(sl, _Digits) + "` (-" + IntegerToString(g_sl_points / 10) + " Pips)\", \"inline\": true}," +
                    "{\"name\": \"🎯 Take Profit\", \"value\": \"`" + DoubleToString(tp, _Digits) + "` (+" + IntegerToString(g_tp_points / 10) + " Pips)\", \"inline\": true}," +
                    "{\"name\": \"🛡️ Spread Saat Entry\", \"value\": \"`" + IntegerToString(spread_used) + " Points` (Aman)\", \"inline\": true}," +
-                   "{\"name\": \"💰 Saldo Akun\", \"value\": \"`$" + DoubleToString(m_account.Balance(), 2) + "` (Auto-Lot Proporsional)\", \"inline\": true}," +
+                   "{\"name\": \"💰 Saldo Akun\", \"value\": \"`$" + DoubleToString(m_account.Balance(), 2) + "` (Auto-Lot $500 = 0.01)\", \"inline\": true}," +
                    "{\"name\": \"🎫 Ticket ID\", \"value\": \"`#" + IntegerToString(ticket) + "`\", \"inline\": true}";
 
    SendDiscordEmbed("🧠 AI NEURAL SCALPER EXECUTED (" + type + ")", 
@@ -372,8 +376,8 @@ int OnInit()
    g_trailing_dist      = InpTrailingDistance;
    g_trailing_step      = InpTrailingStep;
    g_use_daily_guard    = InpUseDailyGuard;
-   g_daily_target_usd   = InpDailyTargetProfit;
-   g_daily_max_loss_usd = InpDailyMaxLoss;
+   g_daily_target_pct   = InpDailyTargetPercent;
+   g_daily_max_loss_pct = InpDailyMaxLossPercent;
 
    FetchAndApplyCloudConfig(true);
    m_last_cloud_sync_time = TimeCurrent();
@@ -413,16 +417,20 @@ int OnInit()
       }
    }
 
+   double current_bal = m_account.Balance();
+   double target_usd = current_bal * (g_daily_target_pct / 100.0);
+   double loss_usd = current_bal * (g_daily_max_loss_pct / 100.0);
    double current_lot = CalculateLotSize(g_sl_points);
+
    string startup_fields = "{\"name\": \"🧠 AI Neural Engine\", \"value\": \"`Deep MLP (7->8->6->3)`\", \"inline\": true}," +
-                           "{\"name\": \"🎯 Ambang Keyakinan\", \"value\": \"`Min " + DoubleToString(g_confidence_thresh * 100.0, 0) + "% Confidence`\", \"inline\": true}," +
-                           "{\"name\": \"🛡️ Max Spread Guard\", \"value\": \"`Max " + IntegerToString(g_max_spread) + " Points`\", \"inline\": true}," +
+                           "{\"name\": \"🎯 Target Cuan Harian\", \"value\": \"`+$" + DoubleToString(target_usd, 2) + " (15% Wallet)`\", \"inline\": true}," +
+                           "{\"name\": \"🛡️ Max Loss Harian\", \"value\": \"`-$" + DoubleToString(loss_usd, 2) + " (7% Wallet)`\", \"inline\": true}," +
                            "{\"name\": \"📈 Auto-Lot Mode\", \"value\": \"`$" + DoubleToString(g_balance_step, 0) + " = " + DoubleToString(g_lot_step, 2) + " Lot` (Lot: **" + DoubleToString(current_lot, 2) + "**)\", \"inline\": true}," +
                            "{\"name\": \"🎯 Target SL / TP\", \"value\": \"`SL: " + IntegerToString(g_sl_points / 10) + " Pips | TP: " + IntegerToString(g_tp_points / 10) + " Pips`\", \"inline\": true}," +
                            "{\"name\": \"☁️ OTA Cloud Sync\", \"value\": \"`v" + g_current_version + " (Active)`\", \"inline\": true}";
 
-   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif!", 
-                    "Expert Advisor bertenaga Deep Neural Network AI siap berburu scalping 24/7 di XAUUSD M1.", 
+   SendDiscordEmbed("🧠 XAUUSD AI-Brain Sentinel Aktif (Target 15% • Max Loss 7%)!", 
+                    "Expert Advisor bertenaga Deep Neural Network AI siap berburu scalping dengan proteksi Wallet Guard.", 
                     0x3498DB, startup_fields, false);
 
    return INIT_SUCCEEDED;
@@ -610,6 +618,12 @@ void DisplayAIDashboard(const float &features[], float p_neu, float p_buy, float
    string engine_name = (InpAIMode == AI_ONNX_MODEL_FILE && onnx_loaded) ? "ONNX Engine (xauusd_m1_brain.onnx)" : "Built-in Deep Neural Network (MLP)";
    long current_spread = m_symbol.Spread();
    string spread_status = (current_spread <= g_max_spread) ? "[AMAN ✅]" : "[TERLALU TINGGI 🚫]";
+   
+   double cur_bal = m_account.Balance();
+   if(cur_bal <= 0) cur_bal = m_account.Equity();
+
+   double dynamic_target_usd = cur_bal * (g_daily_target_pct / 100.0);
+   double dynamic_max_loss_usd = cur_bal * (g_daily_max_loss_pct / 100.0);
    double daily_pl = GetDailyProfitLoss();
    double lot = CalculateLotSize(g_sl_points);
 
@@ -628,7 +642,9 @@ void DisplayAIDashboard(const float &features[], float p_neu, float p_buy, float
    info += StringFormat("  🎯 Status Keputusan : %s\n", ai_action);
    info += "---------------------------------------------------------\n";
    info += StringFormat(" 🛡️ Spread Gold      : %d pts (Max: %d pts) %s\n", current_spread, g_max_spread, spread_status);
-   info += StringFormat(" 🏆 Profit Hari Ini  : %s$%.2f (Target: +$%.0f)\n", (daily_pl >= 0) ? "+" : "-", MathAbs(daily_pl), g_daily_target_usd);
+   info += StringFormat(" 🏆 Profit Hari Ini  : %s$%.2f\n", (daily_pl >= 0) ? "+" : "-", MathAbs(daily_pl));
+   info += StringFormat(" 🎯 Target 15%% Cuan  : +$%.2f (Kunci Profit)\n", dynamic_target_usd);
+   info += StringFormat(" 🛡️ Max Loss 7%% Rugi : -$%.2f (Rem Pengaman)\n", dynamic_max_loss_usd);
    info += StringFormat(" ☁️ OTA Cloud Status : AKTIF (Auto-Sync tiap %d Menit)\n", InpSyncIntervalMin);
    info += " 📡 Discord Webhook  : TERHUBUNG ✅\n";
    info += "=========================================================\n";
@@ -777,11 +793,17 @@ void OnTick()
    // 5. Perbarui On-Chart Live Dashboard
    DisplayAIDashboard(features, prob_neutral, prob_buy, prob_sell);
 
-   // 6. Cek Proteksi Daily Profit Target & Max Loss
+   // 6. Cek Proteksi Daily Profit Target (15%) & Max Loss (7%) dari Wallet
    if(g_use_daily_guard)
    {
+      double cur_bal = m_account.Balance();
+      if(cur_bal <= 0) cur_bal = m_account.Equity();
+
+      double dynamic_target_usd = cur_bal * (g_daily_target_pct / 100.0);
+      double dynamic_max_loss_usd = cur_bal * (g_daily_max_loss_pct / 100.0);
       double daily_pl = GetDailyProfitLoss();
-      if(daily_pl >= g_daily_target_usd || daily_pl <= -g_daily_max_loss_usd) return;
+
+      if(daily_pl >= dynamic_target_usd || daily_pl <= -dynamic_max_loss_usd) return;
    }
 
    // 7. Filter Bar Baru M1
