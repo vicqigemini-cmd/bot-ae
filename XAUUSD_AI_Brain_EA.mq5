@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                     XAUUSD_AI_Brain_EA.mq5       |
-//|  APEX SOVEREIGN CITADEL v25.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
+//|  APEX SOVEREIGN CITADEL v26.00 (INSTITUTIONAL M15 SNIPER MODEL)  |
 //|  (SMC FVG • Golden Pocket 50-61.8% • 1:2.5 RR • Anti-Rungkad)    |
 //|                                  https://github.com/vicqigemini-cmd |
 //+------------------------------------------------------------------+
 #property copyright "IDX & AI Sentinel Algorithmic Team"
 #property link      "https://github.com/vicqigemini-cmd"
-#property version   "25.00"
-#property description "Unified Master Brain EA v25.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
+#property version   "26.00"
+#property description "Unified Master Brain EA v26.00 Institutional M15 Single-Entry Sniper Model: Structure-Based SL/TP (1:2.5 RR), M15 Smart Money Concepts (FVG & Liquidity Sweep), Golden Pocket 50-61.8% Fibonacci, True Zero-Loss Commission-Aware BE, Prop Firm 4% Trailing DD Guard, In-EA Autonomous Self-Updater, Global Nuclear Kill-Switch, Prominent Fleet ID."
 
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>
@@ -84,7 +84,7 @@ input string              InpBotName               = "XAUUSD Apex Brain Master";
 
 input group "=== 3. OTA CLOUD AUTO-SYNC & AUTONOMOUS UPDATER ==="
 input bool                InpEnableCloudSync       = true;                  // Aktifkan Sinkronisasi Cloud dari GitHub
-input int                 InpSyncIntervalMin       = 5;                     // Interval Cek Update Cloud (Menit)
+input int                 InpSyncIntervalSec       = 20;                    // Interval Cek Update Cloud (Detik, Cepat 20s)
 input bool                InpEnableAutoSelfUpdate  = true;                  // Aktifkan Autonomous In-EA Binary Self-Updater
 
 input group "=== 4. ENGINE UTAMA: M15 INSTITUTIONAL SINGLE-ENTRY SNIPER ==="
@@ -140,17 +140,15 @@ input int                 InpNewsBufferMin         = 15;                    // J
 input bool                InpUseFridayAutoClean    = true;                  // Bersihkan Posisi Scalp Jumat Malam (21:00 Server)
 input bool                InpUseRolloverGuard      = true;                  // Pelindung Jam Rollover Broker (23:50-01:10)
 
-
 input group "=== 8. INSTITUTIONAL KILL-ZONES TIME ENGINE ==="
 input bool                InpUseKillZonesOnly      = true;                  // Hanya Berburu di Jam Likuiditas Institusi (London & NY)
-input bool                InpTradeLondonKZ         = true;                  // Aktifkan London Open Kill-Zone (07:00 - 11:00 Server)
-input int                 InpLondonKZStartHour     = 7;                     // London KZ Start Hour (Server Time)
-input int                 InpLondonKZEndHour       = 11;                    // London KZ End Hour (Server Time)
-input bool                InpTradeNYKZ             = true;                  // Aktifkan New York Kill-Zone (13:00 - 17:00 Server)
-input int                 InpNYKZStartHour         = 13;                    // NY KZ Start Hour (Server Time)
-input int                 InpNYKZEndHour           = 17;                    // NY KZ End Hour (Server Time)
+input bool                InpTradeLondonKZ         = true;                  // Aktifkan London Open Kill-Zone (Sesuai Jam Layar)
+input int                 InpLondonKZStartHour     = 8;                     // London KZ Jam Mulai (Sesuai Jam Layar MT5)
+input int                 InpLondonKZEndHour       = 13;                    // London KZ Jam Selesai (Sesuai Jam Layar MT5)
+input bool                InpTradeNYKZ             = true;                  // Aktifkan New York Kill-Zone (Sesuai Jam Layar)
+input int                 InpNYKZStartHour         = 13;                    // NY KZ Jam Mulai (Sesuai Jam Layar MT5)
+input int                 InpNYKZEndHour           = 19;                    // NY KZ Jam Selesai (Sesuai Jam Layar MT5)
 input bool                InpTradeAsianSession     = false;                 // Izinkan Trading di Sesi Asia (False = Standby Hindari Chop)
-
 
 input group "=== 9. MULTI-PAIR PORTFOLIO & SHARED RISK MATRIX ==="
 input bool                InpEnableMultiPairMode   = true;                  // Izinkan EA Beroperasi di Semua Pair (XAU, Forex, Index)
@@ -158,8 +156,8 @@ input double              InpMaxPortfolioRiskPct   = 2.0;                   // B
 input int                 InpMaxTotalOpenTradesAll = 3;                     // Batas Maksimal Total Posisi Terbuka Seluruh Portofolio
 
 //--- Dynamic Runtime Cloud Variables
-string                    g_current_version        = "25.00";
-string                    g_last_self_updated_ver  = "25.00";
+string                    g_current_version        = "26.00";
+string                    g_last_self_updated_ver  = "26.00";
 double                    g_balance_step           = 500.0;
 double                    g_lot_step               = 0.01;
 int                       g_max_spread             = 70;
@@ -1006,29 +1004,28 @@ bool IsInsideInstitutionalKillZone(string &out_session_name)
    int min  = dt.min;
    double dec_time = hour + (min / 60.0);
 
-   // Dalam Strategy Tester atau broker GMT+2/3 standar (London 09-14 Server, NY 14-19 Server)
-   // London Open Kill-Zone: 08:00 - 13:00 Server Time
-   if(InpTradeLondonKZ && (dec_time >= 8.0 && dec_time <= 13.0))
+   // London Open Kill-Zone: Sesuai Jam Layar Chart MT5 (Default 08:00 - 13:00)
+   if(InpTradeLondonKZ && (dec_time >= InpLondonKZStartHour && dec_time <= InpLondonKZEndHour))
    {
-      out_session_name = "LONDON KILL-ZONE 🏛️ (08:00-13:00 Server)";
+      out_session_name = StringFormat("LONDON KILL-ZONE 🏛️ (%02d:00-%02d:00 Layar)", InpLondonKZStartHour, InpLondonKZEndHour);
       return true;
    }
 
-   // New York Open Kill-Zone: 13.5 - 19:00 Server Time
-   if(InpTradeNYKZ && (dec_time >= 13.5 && dec_time <= 19.0))
+   // New York Open Kill-Zone: Sesuai Jam Layar Chart MT5 (Default 13:30 - 19:00)
+   if(InpTradeNYKZ && (dec_time >= (InpNYKZStartHour + 0.5) && dec_time <= InpNYKZEndHour))
    {
-      out_session_name = "NEW YORK KILL-ZONE ⚡ (13:30-19:00 Server)";
+      out_session_name = StringFormat("NEW YORK KILL-ZONE ⚡ (%02d:30-%02d:00 Layar)", InpNYKZStartHour, InpNYKZEndHour);
       return true;
    }
 
-   // Asian Session: 00:00 - 08:00 Server Time
-   if(InpTradeAsianSession && (dec_time >= 0.0 && dec_time < 8.0))
+   // Asian Session: Sesuai Jam Layar Chart MT5 (Default 00:00 - 08:00)
+   if(InpTradeAsianSession && (dec_time >= 0.0 && dec_time < InpLondonKZStartHour))
    {
-      out_session_name = "ASIAN SESSION 🌏 (Low Volatility)";
+      out_session_name = StringFormat("ASIAN SESSION 🌏 (00:00-%02d:00 Layar)", InpLondonKZStartHour);
       return true;
    }
 
-   out_session_name = "STANDBY (OUTSIDE KILL-ZONES ⏳)";
+   out_session_name = StringFormat("STANDBY (Layar %02d:%02d ⏳)", hour, min);
    return false;
 }
 
@@ -1555,7 +1552,7 @@ int OnInit()
                            "{\"name\": \"📱 Dual Redundancy\", \"value\": \"`Discord + MT5 Mobile Push`\", \"inline\": true}," +
                            "{\"name\": \"📈 Lot Size Model\", \"value\": \"`" + (InpLotType == LOT_RISK_PERCENT ? "1.0% Equity Risk (" + DoubleToString(current_lot, 2) + " Lot)" : "Fixed/Step") + "`\", \"inline\": true}";
 
-   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v25.00 Anti-Rungkad)! 🚀", 
+   SendDiscordEmbed("[" + g_account_tag + "] 👑 XAUUSD Institutional Sniper Aktif (v26.00 Anti-Rungkad)! 🚀", 
                     "Sistem M15 Single-Entry Sniper siap beroperasi pada akun **[" + g_account_tag + "]** dengan ketahanan benteng kuantitatif mutlak!", 
                     0x3498DB, startup_fields, false);
 
@@ -1589,7 +1586,7 @@ void OnTimer()
    datetime now = TimeCurrent();
 
    // 1. Sinkronisasi Cloud OTA & Global Kill-Switch Check
-   if(now - m_last_cloud_sync_time >= InpSyncIntervalMin * 60)
+   if(now - m_last_cloud_sync_time >= InpSyncIntervalSec)
    {
       FetchAndApplyCloudConfig(false);
       m_last_cloud_sync_time = now;
@@ -1938,7 +1935,7 @@ void ExecuteSwingOrder(ENUM_ORDER_TYPE order_type, string trigger_source)
 }
 
 //+------------------------------------------------------------------+
-//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v25.00)        |
+//| ON TICK EXECUTION (INSTITUTIONAL M15 SNIPER MODEL v26.00)        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
