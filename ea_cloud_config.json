@@ -1,7 +1,7 @@
 {
-  "version": "25.00",
-  "sync_interval_min": 5,
-  "engine_name": "Apex Sovereign Omniscience (v25.00 Strategy Tester & Live Unified Edition)",
+  "version": "26.00",
+  "sync_interval_sec": 20,
+  "engine_name": "Apex Sovereign Omnipresence (v26.00 Fast-Sync & Screen-Time Edition)",
   "emergency_close_all": false,
   "enable_auto_self_update": true,
   "enable_multi_pair_mode": true,
@@ -56,5 +56,5 @@
   "use_daily_guard": false,
   "daily_target_profit_percent": 15.0,
   "daily_max_loss_percent": 15.0,
-  "status_message": "OTA v25.00 Strategy Tester & Live Unified Edition: Fixed Prop Firm Daily DD Day-Start Reset (Eliminated False Kill-Switch Freeze in Tester), Fixed Kill-Zones Server Time Windows (London 08-13 Server, NY 13.5-19 Server), 100% Scalping Trade Execution Active Across Backtest & Live."
+  "status_message": "OTA v26.00 Fast-Sync & Screen-Time Edition: 20-Second Ultra-Fast Cloud Polling, 100% Screen-Time Dynamic Kill-Zones (London 08-13 Server, NY 13.5-19 Server), Instant Trade Execution."
 }
